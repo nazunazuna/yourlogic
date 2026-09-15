@@ -2,6 +2,7 @@ import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/f
 import { auth, fetchOrInitUser, saveClearRecord } from "../../services/firebaseService.js";
 import { executeHintLogic } from "./sudokuHint.js";
 import { doc, getDoc, getFirestore } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import { clearProgress, loadProgress, saveProgress } from "../../core/progressStore.js";
 
 // グローバル状態
 let currentUser = null;
@@ -11,6 +12,7 @@ let currentInputMode = 'location';
 let selectedNumber = null;         
 let isMemoMode = false;
 let currentSolution = "";
+let currentProblem = "";
 let currentPuzzleId = null;
 
 // ⏱️ タイマー関連の変数
@@ -57,16 +59,13 @@ onAuthStateChanged(auth, async (user) => {
     let savedProgress = null;
 
     if (isResume) {
-        const savedData = localStorage.getItem("puzzle_midway_save");
-        if (savedData) {
-            savedProgress = JSON.parse(savedData);
-            puzzleIdToLoad = savedProgress.id;
-        }
+        savedProgress = loadProgress();
+        if (savedProgress?.type === "sudoku") puzzleIdToLoad = savedProgress.id;
     }
 
     if (puzzleIdToLoad) {
         try {
-            await loadSpecificPuzzle(puzzleIdToLoad);
+            await loadSpecificPuzzle(puzzleIdToLoad, savedProgress);
 
             if (isResume && savedProgress) {
                 currentDifficulty = savedProgress.difficulty || currentDifficulty;
@@ -118,9 +117,22 @@ function startGameTimer(resumeTime = 0) {
 }
 
 // 特定のパズルデータをFirestoreから1件取得
-async function loadSpecificPuzzle(puzzleId) {
+async function loadSpecificPuzzle(puzzleId, savedProgress = null) {
     console.log(`パズルID: ${puzzleId} をストレージからロードします...`);
     
+    const savedLocal = savedProgress?.type === "sudoku" ? savedProgress : null;
+    const sessionLocal = JSON.parse(sessionStorage.getItem("yourlogic:local-sudoku") || "null");
+    const localPuzzle = savedLocal?.solutionData
+        ? { id: savedLocal.id, problemData: savedLocal.problemData, solutionData: savedLocal.solutionData }
+        : sessionLocal;
+
+    if (puzzleId.startsWith("sudoku-local-") && localPuzzle?.id === puzzleId) {
+        currentPuzzleId = puzzleId;
+        displayPuzzle(localPuzzle.problemData, localPuzzle.solutionData);
+        startGameTimer();
+        return;
+    }
+
     const db = getFirestore();
     const puzzleRef = doc(db, "puzzles", puzzleId); 
     const puzzleSnap = await getDoc(puzzleRef);
@@ -196,15 +208,17 @@ function saveCurrentProgress() {
         difficulty: currentDifficulty,   
         id: currentPuzzleId,             
         board: getNowBoardArray(),       
-        elapsedTime: elapsedTime         
+        elapsedTime: elapsedTime,
+        problemData: currentProblem,
+        solutionData: currentSolution
     };
-    
-    localStorage.setItem("puzzle_midway_save", JSON.stringify(progressData));
+
+    saveProgress(progressData);
 }
 
 // パズルがクリアされたらセーブデータを消去する関数
 function onPuzzleCleared() {
-    localStorage.removeItem("puzzle_midway_save");
+    clearProgress();
 }
 
 // 盤面の初期化 (9x9)
@@ -471,6 +485,7 @@ if (memoBtn) {
 function displayPuzzle(boardStr, solutionStr) {
     updateHighlight(null);
     currentSolution = solutionStr;
+    currentProblem = boardStr;
 
     for (let i = 0; i < 81; i++) {
         const char = boardStr[i];
@@ -513,7 +528,7 @@ async function executeCheck(isAuto = false) {
             try {
                 const uid = currentUser ? currentUser.uid : null;
                 // Firestoreへ実績保存
-                await saveClearRecord(uid, currentPuzzleId, elapsedTime);
+                await saveClearRecord(uid, currentPuzzleId, elapsedTime, { type: "sudoku", difficulty: currentDifficulty, size: 9 });
                 console.log(`クリア実績を記録しました。 (PuzzleID: ${currentPuzzleId})`);
             } catch (e) {
                 console.error("クリア実績の保存に失敗:", e);
@@ -540,6 +555,7 @@ document.getElementById('giveup-btn').addEventListener('click', () => {
 
     if (confirm("本当に諦めますか？すべてのマスに模範解答が配置されます。")) {
         clearInterval(gameTimerId); 
+        clearProgress();
         cells.forEach((cell, i) => {
             if (cell.classList.contains('initial')) return;
             const cellVal = cell.querySelector('.cell-val');

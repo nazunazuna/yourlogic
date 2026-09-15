@@ -1,445 +1,143 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ja">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Logic Puzzles - オンライン・ロジックパズル</title>
-    <link rel="stylesheet" href="css/index.css">
-    <style>
-        /* 💡 中断データがある場合の表示スタイル */
-        .resume-banner {
-            background-color: #feebc8;
-            border: 1px solid #fbd38d;
-            color: #c05621;
-            padding: 1rem;
-            border-radius: 8px;
-            margin-bottom: 1.5rem;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-        .resume-banner h4 { margin: 0 0 0.25rem 0; color: #dd6b20; }
-        .resume-banner p { margin: 0; font-size: 0.9rem; }
-        .btn-resume {
-            background-color: #dd6b20;
-            color: white;
-            border: none;
-            padding: 0.5rem 1rem;
-            border-radius: 4px;
-            cursor: pointer;
-            font-weight: bold;
-        }
-        .btn-resume:hover { background-color: #c05621; }
-    </style>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="数独と四角に切れを、ヒント・途中保存付きで遊べるロジックパズルサイト。">
+  <title>YourLogic — ロジックパズルを遊ぶ</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='15' fill='%23142d35'/%3E%3Cpath d='M16 15h32v34H16zM27 15v34M38 15v34M16 27h32M16 38h32' fill='none' stroke='%23c8f135' stroke-width='3'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="./css/base.css">
+  <link rel="stylesheet" href="./css/index.css">
 </head>
 <body>
-
-    <header>
-        <h1>Logic Puzzles</h1>
-        <div class="header-right">
-            <nav>
-                <ul>
-                    <li><a href="./index.html">ホーム</a></li>
-                    <li><a href="#">パズル一覧</a></li>
-                </ul>
-            </nav>
-            
-            <div class="auth-section" id="auth-section">
-                <button id="login-nav-btn" class="btn-sm btn-login">ログイン / 新規登録</button>
-                
-                <div id="user-nav-profile" style="display: none; align-items: center; gap: 1rem;">
-                    <span class="user-badge" id="header-user-name">ユーザー</span>
-                    <a href="./account.html" class="account-link">アカウント設定</a>
-                    <button id="logout-nav-btn" class="btn-sm btn-logout">ログアウト</button>
-                </div>
-            </div>
+  <header class="site-header">
+    <div class="header-inner">
+      <a class="brand" href="./index.html" aria-label="YourLogic ホーム">
+        <span class="brand-mark" aria-hidden="true">YL</span>
+        <span class="brand-text">YourLogic</span>
+      </a>
+      <nav class="site-nav" aria-label="メインメニュー">
+        <a href="#puzzles">パズル</a>
+        <a href="#how-to-play">遊び方</a>
+      </nav>
+      <div class="header-actions">
+        <button id="login-btn" class="btn btn-accent btn-sm" type="button">ログイン</button>
+        <div id="user-actions" class="header-actions" hidden>
+          <span id="user-name" class="user-name"></span>
+          <a class="btn btn-ghost btn-sm" href="./account.html">記録</a>
+          <button id="logout-btn" class="btn btn-ghost btn-sm" type="button">ログアウト</button>
         </div>
-    </header>
+      </div>
+    </div>
+  </header>
 
-    <main>
-        <section class="hero">
-            <h2>思考を刺激する、いくつものロジックパズル</h2>
-            <p>ルールはシンプル、解き味は奥深い。いつでも新鮮なパズルがあなたを待っています。</p>
-        </section>
+  <main>
+    <section class="intro shell" aria-labelledby="intro-title">
+      <div>
+        <p class="eyebrow">THINK / DRAW / SOLVE</p>
+        <h1 id="intro-title">考える時間を、<br><span>すぐに始めよう。</span></h1>
+        <p>数独と四角に切れを、問題生成・ヒント・途中保存つきで遊べます。</p>
+      </div>
+      <div class="quick-play surface">
+        <div class="quick-icon" aria-hidden="true">09</div>
+        <div><span>今日のおすすめ</span><strong>中級の数独</strong></div>
+        <button id="daily-btn" class="btn btn-accent" type="button">すぐ解く</button>
+      </div>
+    </section>
 
-        <div id="resume-container" style="display: none;">
-            <div class="resume-banner">
-                <div>
-                    <h4>⏳ 進行途中のパズルがあります</h4>
-                    <p id="resume-details">パズル: -- (難易度: --)</p>
-                </div>
-                <button id="resume-game-btn" class="btn-resume">続きから再開する</button>
+    <section id="resume-panel" class="resume shell" hidden aria-labelledby="resume-title">
+      <div class="resume-copy">
+        <span class="resume-dot" aria-hidden="true"></span>
+        <div><p id="resume-title">途中のパズルがあります</p><strong id="resume-label">読み込み中</strong></div>
+      </div>
+      <div class="resume-actions">
+        <button id="discard-progress-btn" class="btn btn-secondary btn-sm" type="button">破棄</button>
+        <button id="resume-btn" class="btn btn-primary" type="button">続きから</button>
+      </div>
+    </section>
+
+    <div id="home-status" class="notice shell" role="status" aria-live="polite" hidden></div>
+
+    <section id="puzzles" class="catalog shell" aria-labelledby="catalog-title">
+      <div class="catalog-head">
+        <div><p class="eyebrow">PUZZLE SELECT</p><h2 id="catalog-title" class="section-heading">パズルを選ぶ</h2></div>
+        <p>難易度や盤面サイズを選んで開始できます。</p>
+      </div>
+      <div class="puzzle-grid">
+        <article class="puzzle-card sudoku-card">
+          <div class="card-visual sudoku-visual" aria-hidden="true">
+            <div class="mini-sudoku"><span>8</span><i></i><span>2</span><i></i><span>6</span><i></i><i></i><span>4</span><i></i></div>
+            <span class="card-number">01</span>
+          </div>
+          <div class="card-content">
+            <div class="card-title-row">
+              <div><p>NUMBER PLACEMENT</p><h3>数独</h3></div>
+              <span class="feature-badge">メモ・ヒント</span>
             </div>
-        </div>
-
-        <section class="daily-section">
-            <div class="daily-info">
-                <h3>毎日更新！今日のパズルに挑戦してみましょう。</h3>
-                <p>日々の思考のウォーミングアップに最適なおすすめの問題です。</p>
+            <p class="card-description">縦・横・3×3のブロックに、1〜9を重複なく入れます。</p>
+            <fieldset class="choice-group" data-choice-group="sudoku">
+              <legend>難易度</legend>
+              <div class="segmented">
+                <button class="choice active" data-value="easy" type="button" aria-pressed="true">初級</button>
+                <button class="choice" data-value="standard" type="button" aria-pressed="false">中級</button>
+                <button class="choice" data-value="hard" type="button" aria-pressed="false">上級</button>
+                <button class="choice" data-value="insane" type="button" aria-pressed="false">超上級</button>
+              </div>
+            </fieldset>
+            <div id="stamina" class="stamina" hidden>
+              <span>新規生成ポイント</span><strong id="stamina-count">5 / 5</strong><small id="stamina-timer"></small>
             </div>
-            <a href="#" class="btn">今すぐ挑戦</a>
-        </section>
+            <button id="start-sudoku-btn" class="btn btn-primary btn-block" type="button">この数独を始める</button>
+          </div>
+        </article>
 
-        <h3 class="section-title">パズルを選ぶ</h3>
-        
-        <div class="puzzle-grid">
-            <div class="puzzle-card sudoku-card">
-                <div class="puzzle-thumb">9 × 9</div>
-                <div class="puzzle-body">
-                    <h4>数独 (Sudoku)</h4>
-                    <p>縦横の列と3x3のブロックに1〜9の数字を重複なく入れる定番パズル。</p>
-                    
-                    <div class="difficulty-selector" id="sudoku-diff-selector">
-                        <div class="diff-btn active" data-diff="easy">Easy</div>
-                        <div class="diff-btn" data-diff="standard">Standard</div>
-                        <div class="diff-btn" data-diff="hard">Hard</div>
-                        <div class="diff-btn" data-diff="insane">Insane</div>
-                    </div>
-                    
-                    <div id="stamina-container" class="stamina-container" style="display: none;">
-                        <span class="stamina-label">⚡ 生成猶予:</span>
-                        <div class="stamina-values">
-                            <span id="stamina-count">-/5</span>
-                            <span id="stamina-timer"></span>
-                        </div>
-                    </div>
-                    
-                    <button id="start-sudoku-btn">数独に挑戦する</button>
-
-                    <div class="puzzle-meta" style="margin-top: 0.5rem; padding-top: 0.5rem; border-top: 1px solid #edf2f7;">
-                        <span class="difficulty diff-easy">Easy ~ Hard</span>
-                        <span class="status-badge status-guide">ヒント・解説付き</span>
-                    </div>
-                </div>
+        <article class="puzzle-card shikaku-card">
+          <div class="card-visual shikaku-visual" aria-hidden="true">
+            <div class="mini-shikaku"><span>6</span><span>4</span><span>8</span><span>2</span></div>
+            <span class="card-number">02</span>
+          </div>
+          <div class="card-content">
+            <div class="card-title-row">
+              <div><p>AREA DIVISION</p><h3>四角に切れ</h3></div>
+              <span class="feature-badge">下書き・ヒント</span>
             </div>
-
-            <div class="puzzle-card shikaku-card">
-                <div class="puzzle-thumb">■□</div>
-                <div class="puzzle-body">
-                    <h4>四角に切れ (Shikaku)</h4>
-                    <p>数字を含む四角形に盤面を分割するパズル。面積が数字と一致するように枠線を引きます。</p>
-                    
-                    <div class="size-selector" style="margin-bottom: 0.5rem;">
-                        <label for="shikaku-size-select" style="font-size: 0.9rem; font-weight: bold; color: #4a5568;">盤面サイズ:</label>
-                        <select id="shikaku-size-select" style="margin-left: 0.5rem; padding: 0.25rem; border-radius: 4px; border: 1px solid #cbd5e0;">
-                            <option value="5">5 × 5</option>
-                            <option value="10" selected>10 × 10</option>
-                            <option value="15">15 × 15</option>
-                            <option value="20">20 × 20</option>
-                            <option value="25">25 × 25</option>
-                            <option value="30">30 × 30</option>
-                            <option value="35">35 × 35</option>
-                            <option value="40">40 × 40</option>
-                            <option value="45">45 × 45</option>
-                            <option value="50">50 × 50</option>
-                        </select>
-                    </div>
-
-                    <div class="difficulty-selector" id="shikaku-diff-selector">
-                        <div class="diff-btn active" data-diff="easy">Easy</div>
-                        <div class="diff-btn" data-diff="standard">Standard</div>
-                        <div class="diff-btn" data-diff="hard">Hard</div>
-                        <div class="diff-btn" data-diff="insane">Insane</div>
-                    </div>
-
-                    <button id="start-shikaku-btn">四角に切れに挑戦する</button>
-
-                    <div class="puzzle-meta" style="margin-top: 0.5rem; padding-top: 0.5rem; border-top: 1px solid #edf2f7;">
-                        <span class="difficulty diff-medium">Easy ~ Insane</span>
-                        <span class="status-badge status-guide">下書き機能・3段階ヒント搭載</span>
-                    </div>
-                </div>
+            <p class="card-description">数字を1つずつ含み、面積が数字と一致する長方形に盤面を分けます。</p>
+            <div class="shikaku-options">
+              <label>盤面サイズ
+                <select id="shikaku-size">
+                  <option value="5">5 × 5</option><option value="10" selected>10 × 10</option>
+                  <option value="15">15 × 15</option><option value="20">20 × 20</option>
+                  <option value="25">25 × 25</option><option value="30">30 × 30</option>
+                  <option value="40">40 × 40</option><option value="50">50 × 50</option>
+                </select>
+              </label>
             </div>
-        </div>
-    </main>
+            <fieldset class="choice-group" data-choice-group="shikaku">
+              <legend>難易度</legend>
+              <div class="segmented">
+                <button class="choice active" data-value="easy" type="button" aria-pressed="true">初級</button>
+                <button class="choice" data-value="standard" type="button" aria-pressed="false">中級</button>
+                <button class="choice" data-value="hard" type="button" aria-pressed="false">上級</button>
+                <button class="choice" data-value="insane" type="button" aria-pressed="false">超上級</button>
+              </div>
+            </fieldset>
+            <button id="start-shikaku-btn" class="btn btn-primary btn-block" type="button">この四角に切れを始める</button>
+          </div>
+        </article>
+      </div>
+    </section>
 
-    <footer>
-        <p>&copy; 2026 Logic Puzzles. Created by Janky.</p>
-    </footer>
-    
-    <script type="module">
-        import { onAuthStateChanged, signInWithPopup, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-        import { doc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
-        
-        import { auth, db, provider, checkUserExists, fetchPuzzlesByDifficulty, saveNewPuzzle, updateUserStamina } from "./js/services/firebaseService.js";
-        import { generatePuzzle } from "./js/puzzles/sudoku/sudokuGenerator.js";
+    <section id="how-to-play" class="how-to shell" aria-labelledby="how-title">
+      <div><p class="eyebrow">CONTINUE ANYTIME</p><h2 id="how-title" class="section-heading">考えた続きは、この端末に残ります。</h2></div>
+      <ol>
+        <li><span>1</span><div><strong>選ぶ</strong><p>パズル・難易度・サイズを決めます。</p></div></li>
+        <li><span>2</span><div><strong>解く</strong><p>詰まったら段階式ヒントを使えます。</p></div></li>
+        <li><span>3</span><div><strong>続ける</strong><p>中断してもホームから再開できます。</p></div></li>
+      </ol>
+    </section>
+  </main>
 
-        const loginNavBtn = document.getElementById('login-nav-btn');
-        const userNavProfile = document.getElementById('user-nav-profile');
-        const headerUserName = document.getElementById('header-user-name');
-        const logoutNavBtn = document.getElementById('logout-nav-btn');
-        
-        const staminaContainer = document.getElementById('stamina-container');
-        const staminaCount = document.getElementById('stamina-count');
-        const staminaTimer = document.getElementById('stamina-timer');
-        
-        let currentUser = null;
-        let currentUserData = null; 
-        let selectedDifficulty = "easy"; 
-        let staminaTimerId = null;
-        let hasCheckedAutoStart = false;
-
-        const STAMINA_RECOVERY_MS = 5 * 60 * 60 * 1000; 
-        const MAX_STAMINA = 5;
-        const SAVE_KEY = "puzzle_midway_save"; 
-
-        // 進行途中のデータ表示チェック関数
-        function checkMidwaySave() {
-            const container = document.getElementById('resume-container');
-            const details = document.getElementById('resume-details');
-            
-            const savedData = localStorage.getItem(SAVE_KEY) || localStorage.getItem('shikaku_progress');
-
-            if (savedData) {
-                try {
-                    const progress = JSON.parse(savedData);
-                    let gameName = progress.type;
-                    if (progress.type === 'sudoku') gameName = '数独';
-                    if (progress.type === 'shikaku' || (!progress.type && progress.currentRects)) {
-                        gameName = '四角に切れ';
-                        progress.type = 'shikaku'; 
-                    }
-                    
-                    const diffName = (progress.difficulty || 'MEDIUM').toUpperCase();
-                    
-                    details.textContent = `パズル: ${gameName} (難易度: ${diffName})`;
-                    container.style.display = 'block';
-                } catch (e) {
-                    console.error("セーブデータの解析に失敗しました", e);
-                    container.style.display = 'none';
-                }
-            } else {
-                container.style.display = 'none';
-            }
-        }
-
-        // 続きから再開するボタンの処理
-        document.getElementById('resume-game-btn').addEventListener('click', () => {
-            const savedData = localStorage.getItem(SAVE_KEY) || localStorage.getItem('shikaku_progress');
-            if (!savedData) return;
-
-            const progress = JSON.parse(savedData);
-            const targetType = progress.type || 'shikaku';
-            const targetDiff = progress.difficulty || 'easy';
-            const targetId = progress.id || 'local';
-
-            window.location.href = `./puzzles/${targetType}.html?diff=${targetDiff}&id=${targetId}&resume=true`;
-        });
-
-        // スタミナ計算ロジック
-        function calculateCurrentStamina(userData) {
-            let points = userData?.generationPoints ?? MAX_STAMINA;
-            let lastUpdated = userData?.lastPointUpdatedAt;
-            if (!lastUpdated) return { points, lastUpdatedMs: Date.now(), nextRecoveryIn: 0 };
-
-            let lastUpdatedMs = lastUpdated.toDate ? lastUpdated.toDate().getTime() : new Date(lastUpdated).getTime();
-            const now = Date.now();
-            let elapsedMs = now - lastUpdatedMs;
-
-            if (points < MAX_STAMINA && elapsedMs >= STAMINA_RECOVERY_MS) {
-                const recoveredPoints = Math.floor(elapsedMs / STAMINA_RECOVERY_MS);
-                points = Math.min(MAX_STAMINA, points + recoveredPoints);
-                lastUpdatedMs = lastUpdatedMs + (recoveredPoints * STAMINA_RECOVERY_MS);
-                elapsedMs = now - lastUpdatedMs;
-            }
-
-            let nextRecoveryIn = 0;
-            if (points < MAX_STAMINA) {
-                nextRecoveryIn = STAMINA_RECOVERY_MS - elapsedMs;
-            }
-
-            return { points, lastUpdatedMs, nextRecoveryIn };
-        }
-
-        function startStaminaTracker(userData) {
-            if (!staminaContainer || !staminaCount || !staminaTimer) return;
-            staminaContainer.style.display = 'inline-flex';
-            if (staminaTimerId) clearInterval(staminaTimerId);
-            staminaTimerId = setInterval(() => {
-                const { points, nextRecoveryIn } = calculateCurrentStamina(userData);
-                staminaCount.textContent = `${points}/${MAX_STAMINA}`;
-                if (points >= MAX_STAMINA) {
-                    staminaTimer.textContent = "";
-                } else {
-                    const totalSeconds = Math.max(0, Math.floor(nextRecoveryIn / 1000));
-                    const hours = String(Math.floor(totalSeconds / 3600)).padStart(2, '0');
-                    const minutes = String(Math.floor((totalSeconds % 3600) / 60)).padStart(2, '0');
-                    const seconds = String(totalSeconds % 60).padStart(2, '0');
-                    staminaTimer.textContent = `(${hours}:${minutes}:${seconds})`;
-                }
-            }, 1000);
-        }
-
-        function stopStaminaTracker() {
-            if (staminaTimerId) { clearInterval(staminaTimerId); staminaTimerId = null; }
-            if (staminaContainer) staminaContainer.style.display = 'none';
-        }
-
-        function handleAutoStart() {
-            const params = new URLSearchParams(window.location.search);
-            if (params.get('auto') === 'sudoku') {
-                const diff = params.get('diff');
-                if (diff) {
-                    selectedDifficulty = diff;
-                    document.querySelectorAll('#sudoku-diff-selector .diff-btn').forEach(b => {
-                        if (b.getAttribute('data-diff') === diff) b.classList.add('active');
-                        else b.classList.remove('active');
-                    });
-                }
-                const startBtn = document.getElementById('start-sudoku-btn');
-                if (startBtn) startBtn.click();
-            }
-        }
-
-        // 認証初期化
-        onAuthStateChanged(auth, async (user) => {
-            checkMidwaySave(); 
-
-            if (user) {
-                currentUser = user;
-                const exists = await checkUserExists(user.uid);
-                if (!exists) { window.location.href = "./signup.html"; return; }
-                loginNavBtn.style.display = 'none';
-                userNavProfile.style.display = 'flex';
-                
-                onSnapshot(doc(db, "users", user.uid), (docSnap) => {
-                    if (docSnap.exists()) {
-                        const userData = docSnap.data();
-                        currentUserData = userData; 
-                        headerUserName.textContent = userData.displayName || user.displayName || "ユーザー";
-                        startStaminaTracker(userData);
-                        if (!hasCheckedAutoStart) { hasCheckedAutoStart = true; handleAutoStart(); }
-                    }
-                });
-            } else {
-                currentUser = null; currentUserData = null;
-                loginNavBtn.style.display = 'inline-block'; userNavProfile.style.display = 'none';
-                stopStaminaTracker();
-                if (!hasCheckedAutoStart) { hasCheckedAutoStart = true; handleAutoStart(); }
-            }
-        });
-
-        loginNavBtn.addEventListener('click', async () => {
-            try {
-                const result = await signInWithPopup(auth, provider);
-                if (await checkUserExists(result.user.uid)) {
-                    alert(`おかえりなさい、${result.user.displayName || 'プレイヤー'} さん！`);
-                } else { window.location.href = "./signup.html"; }
-            } catch (error) { alert("ログインに失敗しました。"); }
-        });
-
-        logoutNavBtn.addEventListener('click', async () => {
-            if (confirm("ログアウトしますか？")) {
-                try { await signOut(auth); window.location.reload(); } catch (e) { console.error(e); }
-            }
-        });
-
-        // 数独用の難易度選択イベント
-        const sudokuBtns = document.querySelectorAll('#sudoku-diff-selector .diff-btn');
-        sudokuBtns.forEach(btn => {
-            btn.addEventListener('click', () => {
-                sudokuBtns.forEach(b => b.classList.remove('active'));
-                btn.classList.add('active');
-                selectedDifficulty = btn.getAttribute('data-diff');
-            });
-        });
-
-        // 四角に切れ用の難易度選択イベント（UI上のactiveクラス切り替え）
-        const shikakuBtns = document.querySelectorAll('#shikaku-diff-selector .diff-btn');
-        shikakuBtns.forEach(btn => {
-            btn.addEventListener('click', () => {
-                shikakuBtns.forEach(b => b.classList.remove('active'));
-                btn.classList.add('active');
-            });
-        });
-
-        // 「数独に挑戦する」イベントハンドラ
-        document.getElementById('start-sudoku-btn').addEventListener('click', async (e) => {
-            if (e && e.preventDefault) e.preventDefault();
-
-            const savedData = localStorage.getItem(SAVE_KEY) || localStorage.getItem('shikaku_progress');
-            if (savedData) {
-                const progress = JSON.parse(savedData);
-                let gameName = progress.type === 'sudoku' ? '数独' : '四角に切れ';
-                const diffName = (progress.difficulty || 'medium').toUpperCase();
-
-                const confirmNewGame = confirm(`進行途中のパズル（${gameName}: ${diffName}）があります。そのデータを消去し、新しくパズルを始めますか？`);
-                if (confirmNewGame) {
-                    localStorage.removeItem(SAVE_KEY);
-                    localStorage.removeItem('shikaku_progress');
-                } else {
-                    return;
-                }
-            }
-
-            try {
-                const availablePuzzles = await fetchPuzzlesByDifficulty(selectedDifficulty);
-                let targetPuzzle = null;
-
-                if (currentUser) {
-                    const userData = currentUserData;
-                    const clearedPuzzles = userData?.clearedPuzzles || [];
-                    const isAdmin = userData?.isAdmin || false;
-                    targetPuzzle = availablePuzzles.find(p => !clearedPuzzles.includes(p.id));
-
-                    if (targetPuzzle) { navigateToSudoku(selectedDifficulty, targetPuzzle.id); return; }
-
-                    const { points, lastUpdatedMs } = calculateCurrentStamina(userData);
-                    if (points > 0 || isAdmin) {
-                        alert("⏳ 唯一解パズルを新規自動生成中... しばらくお待ちください。");
-                        let newPuzzle = generatePuzzle(selectedDifficulty);
-                        if (newPuzzle) {
-                            const newId = await saveNewPuzzle(currentUser.uid, selectedDifficulty, newPuzzle);
-                            if (!isAdmin) {
-                                const nextPoints = points - 1;
-                                const nextUpdatedDate = (points === MAX_STAMINA) ? new Date() : new Date(lastUpdatedMs);
-                                await updateUserStamina(currentUser.uid, nextPoints, nextUpdatedDate);
-                            }
-                            navigateToSudoku(selectedDifficulty, newId);
-                        } else { alert("問題の自動生成に失敗しました。"); }
-                    } else { alert(`⚠️ 既存ストック切れ、かつ生成ポイント不足です。`); }
-                } else {
-                    if (availablePuzzles.length > 0) {
-                        targetPuzzle = availablePuzzles[Math.floor(Math.random() * availablePuzzles.length)];
-                        navigateToSudoku(selectedDifficulty, targetPuzzle.id);
-                    } else { alert(`⚠️ 現在、難易度「${selectedDifficulty}」の既存ストックがありません。`); }
-                }
-            } catch (e) {
-                alert("パズルデータの取得中にエラーが発生しました。");
-            }
-        });
-
-        // 💡「四角に切れに挑戦する」新規開始時のイベントハンドラ（ご提示のコード）
-        document.getElementById('start-shikaku-btn').addEventListener('click', (e) => {
-            if (e && e.preventDefault) e.preventDefault();
-
-            // 🛑 進行中のデータ衝突チェック
-            const savedData = localStorage.getItem(SAVE_KEY) || localStorage.getItem('shikaku_progress');
-            if (savedData) {
-                const progress = JSON.parse(savedData);
-                let gameName = progress.type === 'sudoku' ? '数独' : '四角に切れ';
-                const diffName = (progress.difficulty || 'medium').toUpperCase();
-
-                const confirmNewGame = confirm(`進行途中のパズル（${gameName}: ${diffName}）があります。そのデータを消去し、新しくパズルを始めますか？`);
-                if (confirmNewGame) {
-                    localStorage.removeItem(SAVE_KEY);
-                    localStorage.removeItem('shikaku_progress');
-                } else {
-                    return; // キャンセル
-                }
-            }
-
-            // UIからサイズと難易度を取得
-            const selectedSize = document.getElementById('shikaku-size-select').value;
-            const selectedDiff = document.querySelector('#shikaku-diff-selector .diff-btn.active').getAttribute('data-diff');
-
-            // 四角に切れのプレイ画面へ遷移（サイズと難易度をパラメータで渡す）
-            window.location.href = `./puzzles/shikaku.html?size=${selectedSize}&diff=${selectedDiff}&id=local`;
-        });
-
-        function navigateToSudoku(difficulty, puzzleId) {
-            window.location.href = `./puzzles/sudoku.html?diff=${difficulty}&id=${puzzleId}`;
-        }
-    </script>
+  <footer class="site-footer">© 2026 YourLogic</footer>
+  <script type="module" src="./js/index.js"></script>
 </body>
 </html>

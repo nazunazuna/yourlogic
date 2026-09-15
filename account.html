@@ -3,18 +3,19 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>アカウント設定 - Logic Puzzles</title>
+    <title>アカウント設定 — YourLogic</title>
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='15' fill='%23142d35'/%3E%3Cpath d='M16 15h32v34H16zM27 15v34M38 15v34M16 27h32M16 38h32' fill='none' stroke='%23c8f135' stroke-width='3'/%3E%3C/svg%3E">
     <style>
         /* --- 基本リセット & 共通設定 --- */
         :root {
-            --primary-color: #1a365d;
-            --accent-color: #3182ce;
-            --bg-color: #f7fafc;
+            --primary-color: #142d35;
+            --accent-color: #237a87;
+            --bg-color: #f3f6f2;
             --card-bg: #ffffff;
-            --text-color: #2d3748;
-            --text-muted: #718096;
-            --border-color: #e2e8f0;
-            --danger-color: #e53e3e;
+            --text-color: #15221f;
+            --text-muted: #52615c;
+            --border-color: #ced8d1;
+            --danger-color: #c43f4b;
             --danger-hover: #c53030;
         }
 
@@ -96,7 +97,7 @@
         /* 設定カード */
         .settings-card {
             background-color: var(--card-bg);
-            border-radius: 12px;
+            border-radius: 16px;
             border: 1px solid var(--border-color);
             box-shadow: 0 4px 6px rgba(0,0,0,0.02);
             padding: 2rem;
@@ -219,7 +220,7 @@
 <body>
 
     <header>
-        <h1 id="brand-title">Logic Puzzles</h1>
+        <h1 id="brand-title">YourLogic</h1>
         <nav><a href="./index.html">ホームへ戻る</a></nav>
     </header>
 
@@ -286,7 +287,7 @@
 
                 <div class="danger-action">
                     <div class="danger-desc">
-                        <h5>アカウントの完全に削除</h5>
+                        <h5>アカウントを完全に削除</h5>
                         <p>すべてのデータを完全に削除します。この操作は取り消せません。</p>
                     </div>
                     <button id="delete-account-btn" class="btn btn-danger">アカウント削除</button>
@@ -297,10 +298,10 @@
     </main>
 
     <script type="module">
-        import { onAuthStateChanged, updateProfile, signOut, deleteUser } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+        import { onAuthStateChanged, updateProfile, signOut, deleteUser, reauthenticateWithPopup } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
         // 💡 重複チェックに必要な Firestore メソッド（collection, query, where, getDocs）を追加インポート
         import { doc, updateDoc, deleteDoc, collection, query, where, getDocs } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
-        import { auth, db, fetchOrInitUser } from "./js/services/firebaseService.js";
+        import { auth, db, provider, fetchOrInitUser } from "./js/services/firebaseService.js";
 
         const loadingScreen = document.getElementById('loading-screen');
         const settingsContent = document.getElementById('settings-content');
@@ -417,6 +418,7 @@
                 await updateDoc(doc(db, "users", currentUser.uid), {
                     clearedPuzzles: [],
                     records: {},
+                    clearHistory: [],
                     generationPoints: 5,
                     lastPointUpdatedAt: new Date()
                 });
@@ -430,6 +432,7 @@
             if (!confirm("🚨 アカウントを完全に削除しますか？戻すことはできません。") || !confirm("最終確認です。本当によろしいですか？")) return;
             try {
                 const uid = currentUser.uid;
+                await reauthenticateWithPopup(currentUser, provider);
                 await deleteDoc(doc(db, "users", uid));
                 await deleteUser(currentUser);
                 alert("アカウントが削除されました。");
@@ -437,7 +440,9 @@
             } catch (error) {
                 console.error(error);
                 if (error.code === 'auth/requires-recent-login') {
-                    alert("⚠️ セキュリティのため再ログインが必要です。一度ログアウトして再度ログインし直してから削除を行ってください。");
+                    alert("セキュリティ確認を完了できませんでした。もう一度ログインしてからお試しください。");
+                } else if (error.code === 'auth/popup-closed-by-user') {
+                    alert("アカウント削除をキャンセルしました。データは削除されていません。");
                 } else {
                     alert("削除中にエラーが発生しました。");
                 }

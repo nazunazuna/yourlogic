@@ -30,6 +30,7 @@ export async function fetchOrInitUser(user) {
             lastPointUpdatedAt: new Date(), 
             clearedPuzzles: [], 
             records: {},
+            clearHistory: [],
             isAdmin: false 
         };
         await setDoc(userDocRef, initialData);
@@ -83,20 +84,30 @@ export async function updateUserStamina(uid, points, updatedAt) {
 /**
  * 💡 クリア実績の保存（ログイン/ゲスト 自動振り分け・タイム記録対応版）
  */
-export async function saveClearRecord(uid, puzzleId, elapsedTime = 0) {
+export async function saveClearRecord(uid, puzzleId, elapsedTime = 0, metadata = {}) {
+    const record = {
+        puzzleId,
+        type: metadata.type || "sudoku",
+        difficulty: metadata.difficulty || "unknown",
+        size: metadata.size || null,
+        elapsedTime,
+        clearedAt: new Date().toISOString()
+    };
     if (uid) {
         // ログインユーザー：Firestoreに書き込み
         const userRef = doc(db, "users", uid);
         try {
             await updateDoc(userRef, {
                 clearedPuzzles: arrayUnion(puzzleId),
-                [`records.${puzzleId}`]: elapsedTime
+                [`records.${puzzleId}`]: elapsedTime,
+                clearHistory: arrayUnion(record)
             });
         } catch (error) {
             // ドキュメントが存在しないケースを想定したフォールバック
             await setDoc(userRef, {
                 clearedPuzzles: [puzzleId],
-                records: { [puzzleId]: elapsedTime }
+                records: { [puzzleId]: elapsedTime },
+                clearHistory: [record]
             }, { merge: true });
         }
     } else {
@@ -110,6 +121,10 @@ export async function saveClearRecord(uid, puzzleId, elapsedTime = 0) {
         let guestTimes = JSON.parse(localStorage.getItem('guest_clear_times')) || {};
         guestTimes[puzzleId] = elapsedTime;
         localStorage.setItem('guest_clear_times', JSON.stringify(guestTimes));
+
+        const history = JSON.parse(localStorage.getItem('guest_clear_history') || '[]');
+        history.push(record);
+        localStorage.setItem('guest_clear_history', JSON.stringify(history.slice(-100)));
     }
 }
 
@@ -119,6 +134,7 @@ export async function saveClearRecord(uid, puzzleId, elapsedTime = 0) {
 export async function mergeGuestData(uid) {
     const guestCleared = JSON.parse(localStorage.getItem('guest_cleared_puzzles')) || [];
     const guestTimes = JSON.parse(localStorage.getItem('guest_clear_times')) || {};
+    const guestHistory = JSON.parse(localStorage.getItem('guest_clear_history') || '[]');
 
     // 移行するデータが何もなければスキップ
     if (guestCleared.length === 0) return;
@@ -128,11 +144,13 @@ export async function mergeGuestData(uid) {
 
     let currentCleared = [];
     let currentRecords = {};
+    let currentHistory = [];
 
     if (userSnap.exists()) {
         const userData = userSnap.data();
         currentCleared = userData.clearedPuzzles || [];
         currentRecords = userData.records || {};
+        currentHistory = userData.clearHistory || [];
     }
 
     // 重複を弾きつつ、既存のアカウントデータとマージ
@@ -142,12 +160,14 @@ export async function mergeGuestData(uid) {
     // Firestoreを更新
     await setDoc(userRef, {
         clearedPuzzles: newCleared,
-        records: newRecords
+        records: newRecords,
+        clearHistory: [...currentHistory, ...guestHistory].slice(-500)
     }, { merge: true });
 
     // 移行が完了したため、LocalStorageのゲストデータをクリーンアップ
     localStorage.removeItem('guest_cleared_puzzles');
     localStorage.removeItem('guest_clear_times');
+    localStorage.removeItem('guest_clear_history');
     console.log("🎉 ゲストユーザー時のプレイ状況をアカウントへ正常に紐付けました。");
 }
 
@@ -171,6 +191,7 @@ export async function registerNewUser(uid, displayName) {
         lastPointUpdatedAt: new Date(), 
         clearedPuzzles: [], 
         records: {},
+        clearHistory: [],
         isAdmin: false 
     };
     await setDoc(userDocRef, initialData);
