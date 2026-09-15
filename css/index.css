@@ -1,395 +1,76 @@
-/* --- 基本リセット & 共通設定 --- */
-:root {
-    --primary-color: #1a365d;
-    --accent-color: #3182ce;
-    --bg-color: #f7fafc;
-    --card-bg: #ffffff;
-    --text-color: #2d3748;
-    --text-muted: #718096;
-    --danger-color: #e53e3e;
+.intro { padding: clamp(42px, 7vw, 82px) 0 34px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(310px, 430px); align-items: end; gap: 48px; }
+.intro h1 { margin: 0; color: var(--navy); font-size: clamp(2.6rem, 7vw, 5.6rem); line-height: .98; letter-spacing: -.07em; }
+.intro h1 span { color: var(--blue); }
+.intro > div > p:last-child { max-width: 620px; margin: 20px 0 0; color: var(--ink-soft); }
+.quick-play { position: relative; overflow: hidden; display: grid; grid-template-columns: auto 1fr; gap: 15px; align-items: center; padding: 18px; border-color: var(--navy); background: var(--navy); color: #fff; }
+.quick-play::after { content: ""; position: absolute; width: 110px; height: 110px; right: -42px; top: -55px; border: 18px solid rgba(200, 241, 53, .13); border-radius: 50%; }
+.quick-icon { width: 54px; height: 54px; display: grid; place-items: center; border: 1px solid rgba(255,255,255,.25); border-radius: 12px; color: var(--lime); font-weight: 900; letter-spacing: .06em; }
+.quick-play span { display: block; color: #b8c8c3; font-size: .78rem; font-weight: 800; }
+.quick-play strong { display: block; font-size: 1.15rem; }
+.quick-play .btn { grid-column: 1 / -1; position: relative; z-index: 1; }
+.resume { margin-bottom: 20px; padding: 14px 16px; display: flex; align-items: center; justify-content: space-between; gap: 20px; border: 1px solid #aac7c9; border-radius: var(--radius); background: #effbfa; }
+.resume[hidden] { display: none; }
+.resume-copy, .resume-actions { display: flex; align-items: center; gap: 12px; }
+.resume-copy p { margin: 0; color: var(--ink-soft); font-size: .8rem; font-weight: 700; }
+.resume-copy strong { color: var(--navy); }
+.resume-dot { width: 11px; height: 11px; border-radius: 50%; background: var(--blue); box-shadow: 0 0 0 7px rgba(35,122,135,.12); }
+#home-status { margin-bottom: 20px; }
+.catalog { padding-top: 36px; scroll-margin-top: 82px; }
+.catalog-head { margin-bottom: 20px; display: flex; align-items: end; justify-content: space-between; gap: 24px; }
+.catalog-head > p { max-width: 370px; margin: 0; color: var(--ink-soft); text-align: right; }
+.puzzle-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 22px; }
+.puzzle-card { overflow: hidden; border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--surface); box-shadow: var(--shadow); }
+.card-visual { position: relative; height: 190px; display: grid; place-items: center; overflow: hidden; background: var(--navy); }
+.card-number { position: absolute; right: 20px; top: 13px; color: rgba(255,255,255,.26); font-size: 1.1rem; font-weight: 900; }
+.mini-sudoku { width: 132px; height: 132px; display: grid; grid-template-columns: repeat(3, 1fr); border: 3px solid var(--lime); transform: rotate(-4deg); box-shadow: 14px 14px 0 rgba(200,241,53,.1); }
+.mini-sudoku > * { display: grid; place-items: center; border: 1px solid rgba(200,241,53,.55); color: #fff; font-style: normal; font-weight: 900; }
+.shikaku-visual { background: #1d5860; }
+.mini-shikaku { width: 180px; height: 126px; display: grid; grid-template-columns: 3fr 2fr; grid-template-rows: 1fr 1.5fr; transform: rotate(3deg); }
+.mini-shikaku span { display: grid; place-items: center; border: 3px solid var(--lime); color: #fff; font-size: 1.25rem; font-weight: 900; }
+.card-content { padding: 24px; }
+.card-title-row { display: flex; align-items: start; justify-content: space-between; gap: 16px; }
+.card-title-row p { margin: 0; color: var(--blue); font-size: .7rem; font-weight: 900; letter-spacing: .12em; }
+.card-title-row h3 { margin: 2px 0 0; color: var(--navy); font-size: 1.75rem; line-height: 1.2; letter-spacing: -.04em; }
+.feature-badge { padding: 5px 8px; border-radius: 999px; background: var(--surface-2); color: var(--ink-soft); font-size: .7rem; font-weight: 800; white-space: nowrap; }
+.card-description { min-height: 3.4em; margin: 16px 0; color: var(--ink-soft); font-size: .92rem; }
+.choice-group { min-width: 0; margin: 0 0 14px; padding: 0; border: 0; }
+.choice-group legend, .shikaku-options label { margin-bottom: 7px; color: var(--ink-soft); font-size: .77rem; font-weight: 800; }
+.segmented { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 5px; }
+.choice { min-height: 38px; padding: 6px 4px; border: 1px solid var(--line); border-radius: 8px; background: #fff; color: var(--ink-soft); cursor: pointer; font-size: .78rem; font-weight: 800; }
+.choice:hover { border-color: var(--line-strong); }
+.choice.active { border-color: var(--navy); background: var(--navy); color: #fff; }
+.shikaku-options { margin-bottom: 14px; }
+.shikaku-options label { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.shikaku-options select { min-height: 38px; padding: 5px 34px 5px 10px; border: 1px solid var(--line); border-radius: 8px; background: #fff; color: var(--ink); font-weight: 800; }
+.stamina { min-height: 34px; margin: -4px 0 12px; display: flex; align-items: center; gap: 8px; color: var(--ink-soft); font-size: .74rem; }
+.stamina[hidden] { display: none; }
+.stamina strong { margin-left: auto; color: var(--blue); }
+.stamina small { font-variant-numeric: tabular-nums; }
+.how-to { margin-top: 70px; padding: 34px; display: grid; grid-template-columns: minmax(0, .85fr) minmax(0, 1.15fr); gap: 56px; border-radius: var(--radius-lg); background: var(--navy); color: #fff; scroll-margin-top: 82px; }
+.how-to .eyebrow { color: var(--lime); }
+.how-to .section-heading { color: #fff; }
+.how-to ol { margin: 0; padding: 0; list-style: none; display: grid; gap: 16px; }
+.how-to li { display: grid; grid-template-columns: 38px 1fr; gap: 13px; align-items: start; }
+.how-to li > span { width: 34px; height: 34px; display: grid; place-items: center; border: 1px solid rgba(255,255,255,.25); border-radius: 50%; color: var(--lime); font-weight: 900; }
+.how-to strong { font-size: .95rem; }
+.how-to li p { margin: 2px 0 0; color: #b9c9c4; font-size: .84rem; }
+@media (max-width: 860px) {
+  .intro { grid-template-columns: 1fr; gap: 28px; }
+  .quick-play { grid-template-columns: auto 1fr auto; }
+  .quick-play .btn { grid-column: auto; }
+  .puzzle-grid { grid-template-columns: 1fr; }
+  .how-to { grid-template-columns: 1fr; gap: 28px; }
 }
-
-* {
-    box-sizing: border-box;
-    margin: 0;
-    padding: 0;
-}
-
-body {
-    font-family: 'Helvetica Neue', Arial, 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', Meiryo, sans-serif;
-    background-color: var(--bg-color);
-    color: var(--text-color);
-    line-height: 1.6;
-}
-
-a {
-    text-decoration: none;
-    color: inherit;
-}
-
-/* --- ヘッダー（認証UI用にフレックス調整） --- */
-header {
-    background-color: var(--primary-color);
-    color: white;
-    padding: 1rem 2rem;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-    flex-wrap: wrap;
-    gap: 1rem;
-}
-
-header h1 {
-    font-size: 1.5rem;
-    font-weight: 700;
-    letter-spacing: 0.05em;
-}
-
-.header-right {
-    display: flex;
-    align-items: center;
-    gap: 2rem;
-}
-
-header nav ul {
-    display: flex;
-    list-style: none;
-    gap: 1.5rem;
-}
-
-header nav a {
-    font-size: 0.95rem;
-    transition: color 0.2s;
-}
-
-header nav a:hover {
-    color: var(--accent-color);
-}
-
-/* アカウント設定・ログインまわりのスタイル */
-.auth-section {
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-    font-size: 0.9rem;
-}
-
-.user-badge {
-    background-color: rgba(255, 255, 255, 0.1);
-    padding: 0.35rem 0.75rem;
-    border-radius: 20px;
-    font-weight: bold;
-    max-width: 150px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-.account-link {
-    color: #e2e8f0;
-    text-decoration: underline;
-    transition: color 0.2s;
-}
-.account-link:hover {
-    color: white;
-}
-
-.btn-sm {
-    padding: 0.35rem 0.75rem;
-    font-size: 0.85rem;
-    border-radius: 4px;
-    border: none;
-    cursor: pointer;
-    font-weight: bold;
-    transition: background-color 0.2s;
-}
-.btn-login {
-    background-color: var(--accent-color);
-    color: white;
-}
-.btn-login:hover { background-color: #2b6cb0; }
- 
-.btn-logout {
-    background-color: transparent;
-    color: #feb2b2;
-    border: 1px solid #feb2b2;
-}
-.btn-logout:hover {
-    background-color: rgba(254, 178, 178, 0.1);
-    color: #fc8181;
-}
-
-/* --- メインコンテナ --- */
-main {
-    max-width: 1200px;
-    margin: 0 auto;
-    padding: 2rem 1rem;
-}
-
-/* --- ヒーローセクション --- */
-.hero {
-    text-align: center;
-    padding: 3rem 1rem;
-    background: linear-gradient(135deg, #2a4365 0%, #1a365d 100%);
-    color: white;
-    border-radius: 12px;
-    margin-bottom: 2.5rem;
-    box-shadow: 0 4px 6px rgba(0,0,0,0.05);
-}
-
-.hero h2 {
-    font-size: 2.2rem;
-    margin-bottom: 1rem;
-}
-
-.hero p {
-    font-size: 1.1rem;
-    color: #e2e8f0;
-}
-
-/* --- デイリーパズル --- */
-.daily-section {
-    background-color: var(--card-bg);
-    border-left: 5px solid var(--accent-color);
-    padding: 1.5rem;
-    border-radius: 4px 12px 12px 4px;
-    margin-bottom: 3rem;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.02);
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 1.5rem;
-}
-
-.daily-info h3 {
-    font-size: 1.3rem;
-    color: var(--primary-color);
-    margin-bottom: 0.25rem;
-}
-
-.daily-info p {
-    color: var(--text-muted);
-    font-size: 0.9rem;
-}
-
-.btn {
-    display: inline-block;
-    background-color: var(--accent-color);
-    color: white;
-    padding: 0.75rem 1.5rem;
-    border-radius: 6px;
-    font-weight: bold;
-    transition: background-color 0.2s, transform 0.1s;
-}
-
-.btn:hover { background-color: #2b6cb0; }
-.btn:active { transform: scale(0.98); }
-
-/* --- パズル一覧グリッド --- */
-.section-title {
-    font-size: 1.5rem;
-    color: var(--primary-color);
-    margin-bottom: 1.5rem;
-    position: relative;
-    padding-bottom: 0.5rem;
-}
-
-.section-title::after {
-    content: '';
-    position: absolute;
-    left: 0;
-    bottom: 0;
-    width: 40px;
-    height: 3px;
-    background-color: var(--accent-color);
-}
-
-.puzzle-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-    gap: 1.5rem;
-    margin-bottom: 3rem;
-}
-
-.puzzle-card {
-    background-color: var(--card-bg);
-    border-radius: 8px;
-    overflow: hidden;
-    box-shadow: 0 4px 6px rgba(0,0,0,0.02);
-    border: 1px solid #e2e8f0;
-    transition: transform 0.2s, box-shadow 0.2s;
-    display: flex;
-    flex-direction: column;
-}
-
-.puzzle-thumb {
-    height: 140px;
-    background-color: #edf2f7;
-    background-image: linear-gradient(white 2px, transparent 2px), linear-gradient(90deg, white 2px, transparent 2px);
-    background-size: 20px 20px;
-    background-position: center;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: #cbd5e0;
-    font-size: 3rem;
-    font-weight: bold;
-    user-select: none;
-}
-
-.puzzle-body {
-    padding: 1.25rem;
-    display: flex;
-    flex-direction: column;
-    flex-grow: 1;
-}
-
-.puzzle-body h4 {
-    font-size: 1.2rem;
-    color: var(--primary-color);
-    margin-bottom: 0.5rem;
-}
-
-.puzzle-body p {
-    font-size: 0.9rem;
-    color: var(--text-muted);
-    margin-bottom: 1rem;
-    flex-grow: 1;
-}
-
-.puzzle-meta {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    font-size: 0.8rem;
-    font-weight: bold;
-}
-
-.difficulty {
-    padding: 0.25rem 0.5rem;
-    border-radius: 4px;
-}
-.diff-easy { background-color: #c6f6d5; color: #22543d; }
-.diff-medium { background-color: #feebc8; color: #744210; }
-.diff-hard { background-color: #fed7d7; color: #742a2a; }
-
-.status-badge {
-    font-size: 0.8rem;
-    font-weight: bold;
-    padding: 0.25rem 0.5rem;
-    border-radius: 4px;
-}
-.status-guide { background-color: #e6fffa; color: #234e52; border: 1px solid #b2f5ea; }
-.status-only { background-color: #ebf8ff; color: #2b6cb0; border: 1px solid #bee3f8; }
-.status-soon { background-color: #edf2f7; color: #4a5568; border: 1px solid #e2e8f0; }
-
-/* --- 数独カード内UIの専用デザイン --- */
-.sudoku-card {
-    border: 2px solid #e2e8f0;
-}
- 
-.difficulty-selector {
-    display: flex;
-    gap: 0.35rem;
-    margin: 0.75rem 0;
-    flex-wrap: wrap;
-}
-
-.diff-btn {
-    flex: 1;
-    min-width: 55px;
-    padding: 0.4rem 0.25rem;
-    font-size: 0.75rem;
-    text-align: center;
-    background-color: #edf2f7;
-    color: var(--text-color);
-    border-radius: 6px;
-    cursor: pointer;
-    font-weight: bold;
-    transition: all 0.2s;
-    user-select: none;
-    border: 1px solid #cbd5e0;
-}
-
-.diff-btn:hover { background-color: #e2e8f0; }
-.diff-btn.active {
-    background-color: var(--primary-color);
-    color: white;
-    border-color: var(--primary-color);
-}
-
-.stamina-container {
-    display: inline-flex;
-    align-items: center;
-    justify-content: space-between;
-    font-size: 0.8rem;
-    background-color: #ebf8ff;
-    color: #2b6cb0;
-    padding: 0.5rem 0.6rem;
-    border-radius: 6px;
-    margin-bottom: 0.75rem;
-    border: 1px solid #bee3f8;
-    width: 100%;
-    box-sizing: border-box;
-}
-
-.stamina-label {
-    font-weight: bold;
-    display: flex;
-    align-items: center;
-    gap: 2px;
-}
-
-.stamina-values {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-}
-
-#stamina-count { font-weight: bold; }
-#stamina-timer {
-    font-size: 0.75rem;
-    opacity: 0.85;
-    font-variant-numeric: tabular-nums;
-}
-
-#start-sudoku-btn {
-    width: 100%;
-    background-color: var(--accent-color);
-    color: white;
-    border: none;
-    padding: 0.65rem;
-    border-radius: 6px;
-    font-weight: bold;
-    font-size: 0.95rem;
-    cursor: pointer;
-    transition: background-color 0.2s, transform 0.1s;
-    box-shadow: 0 2px 4px rgba(49, 130, 206, 0.2);
-    margin-bottom: 0.5rem;
-}
-
-#start-sudoku-btn:hover { background-color: #2b6cb0; }
-#start-sudoku-btn:active { transform: scale(0.98); }
-
-/* --- フッター --- */
-footer {
-    background-color: #2d3748;
-    color: #a0aec0;
-    text-align: center;
-    padding: 2rem 1rem;
-    margin-top: 4rem;
-    font-size: 0.9rem;
-}
-
-@media (max-width: 768px) {
-    header {
-        flex-direction: column;
-        align-items: flex-start;
-    }
-    .header-right {
-        width: 100%;
-        justify-content: space-between;
-    }
+@media (max-width: 620px) {
+  .intro { padding-top: 34px; }
+  .intro h1 { font-size: clamp(2.55rem, 14vw, 4rem); }
+  .quick-play { grid-template-columns: auto 1fr; }
+  .quick-play .btn { grid-column: 1 / -1; }
+  .resume { align-items: stretch; flex-direction: column; }
+  .resume-actions .btn { flex: 1; }
+  .catalog-head { align-items: start; flex-direction: column; }
+  .catalog-head > p { text-align: left; }
+  .card-visual { height: 165px; }
+  .card-content { padding: 20px; }
+  .how-to { padding: 26px 20px; }
 }
