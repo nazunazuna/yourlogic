@@ -1,219 +1,270 @@
-import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-import { auth, fetchPuzzlesByDifficulty, fetchOrInitUser, saveNewPuzzle, updateUserStamina } from "./services/firebaseService.js";
+import { onAuthStateChanged, signInWithPopup, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+import { doc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import {
+  auth, db, provider, checkUserExists, fetchPuzzlesByDifficulty,
+  saveNewPuzzle, updateUserStamina
+} from "./services/firebaseService.js";
 import { generatePuzzle } from "./puzzles/sudoku/sudokuGenerator.js";
+import { clearProgress, loadProgress, progressLabel, progressUrl } from "./core/progressStore.js";
 
-let currentUser = null;
-let selectedDifficulty = 'easy';
-let staminaTimerId = null;
-let isAutoProcessed = false; // 🔄 自動開始の二重実行を防止するフラグ
-
-const STAMINA_RECOVERY_MS = 5 * 60 * 60 * 1000; // 5時間
 const MAX_STAMINA = 5;
+const RECOVERY_MS = 5 * 60 * 60 * 1000;
+const state = { user: null, userData: null, sudokuDifficulty: "easy", shikakuDifficulty: "easy", busy: false };
+let staminaInterval = null;
 
-// スタミナ状態計算関数
-function calculateCurrentStamina(userData) {
-    let points = userData?.generationPoints ?? MAX_STAMINA;
-    let lastUpdated = userData?.lastPointUpdatedAt;
-    let lastUpdatedMs = lastUpdated?.toDate ? lastUpdated.toDate().getTime() : new Date(lastUpdated).getTime();
-    
-    const now = Date.now();
-    let elapsedMs = now - lastUpdatedMs;
+const $ = (selector) => document.querySelector(selector);
+const loginBtn = $("#login-btn");
+const logoutBtn = $("#logout-btn");
+const userActions = $("#user-actions");
+const userName = $("#user-name");
+const status = $("#home-status");
+const sudokuBtn = $("#start-sudoku-btn");
+const dailyBtn = $("#daily-btn");
 
-    if (points < MAX_STAMINA && elapsedMs >= STAMINA_RECOVERY_MS) {
-        const recoveredPoints = Math.floor(elapsedMs / STAMINA_RECOVERY_MS);
-        points = Math.min(MAX_STAMINA, points + recoveredPoints);
-        lastUpdatedMs = lastUpdatedMs + (recoveredPoints * STAMINA_RECOVERY_MS);
-        elapsedMs = now - lastUpdatedMs;
-    }
-
-    let nextRecoveryIn = 0;
-    if (points < MAX_STAMINA) {
-        nextRecoveryIn = STAMINA_RECOVERY_MS - elapsedMs;
-    }
-
-    return { points, lastUpdatedMs, nextRecoveryIn };
+function showStatus(message, tone = "") {
+  status.textContent = message;
+  status.className = `notice shell ${tone}`.trim();
+  status.hidden = !message;
 }
 
-// スタミナUIリアルタイム更新
-function startStaminaTracker(userData) {
-    const container = document.getElementById('stamina-container');
-    const countSpan = document.getElementById('stamina-count');
-    const timerSpan = document.getElementById('stamina-timer');
+function renderProgress() {
+  const progress = loadProgress();
+  const panel = $("#resume-panel");
+  panel.hidden = !progress;
+  if (progress) $("#resume-label").textContent = progressLabel(progress);
+}
 
-    if (!container || !countSpan || !timerSpan) return;
-    container.style.display = 'inline-flex';
+function choose(group, button) {
+  group.querySelectorAll(".choice").forEach((item) => {
+    const selected = item === button;
+    item.classList.toggle("active", selected);
+    item.setAttribute("aria-pressed", String(selected));
+  });
+  if (group.dataset.choiceGroup === "sudoku") state.sudokuDifficulty = button.dataset.value;
+  else state.shikakuDifficulty = button.dataset.value;
+}
 
-    if (staminaTimerId) clearInterval(staminaTimerId);
+document.querySelectorAll("[data-choice-group]").forEach((group) => {
+  group.addEventListener("click", (event) => {
+    const button = event.target.closest(".choice");
+    if (button) choose(group, button);
+  });
+});
 
-    staminaTimerId = setInterval(() => {
-        const { points, nextRecoveryIn } = calculateCurrentStamina(userData);
-        countSpan.textContent = `${points}/${MAX_STAMINA}`;
+function staminaNow(userData) {
+  let points = Number(userData?.generationPoints ?? MAX_STAMINA);
+  const rawUpdated = userData?.lastPointUpdatedAt;
+  let updated = rawUpdated?.toDate ? rawUpdated.toDate().getTime() : new Date(rawUpdated || Date.now()).getTime();
+  const elapsed = Math.max(0, Date.now() - updated);
+  if (points < MAX_STAMINA && elapsed >= RECOVERY_MS) {
+    const recovered = Math.floor(elapsed / RECOVERY_MS);
+    points = Math.min(MAX_STAMINA, points + recovered);
+    updated += recovered * RECOVERY_MS;
+  }
+  return { points, updated, next: points < MAX_STAMINA ? Math.max(0, RECOVERY_MS - (Date.now() - updated)) : 0 };
+}
 
-        if (points >= MAX_STAMINA) {
-            timerSpan.textContent = "";
-        } else {
-            const totalSeconds = Math.max(0, Math.floor(nextRecoveryIn / 1000));
-            const hours = String(Math.floor(totalSeconds / 3600)).padStart(2, '0');
-            const minutes = String(Math.floor((totalSeconds % 3600) / 60)).padStart(2, '0');
-            const seconds = String(totalSeconds % 60).padStart(2, '0');
-            timerSpan.textContent = `(${hours}:${minutes}:${seconds})`;
+function renderStamina() {
+  const box = $("#stamina");
+  if (!state.user || !state.userData) { box.hidden = true; return; }
+  const { points, next } = staminaNow(state.userData);
+  box.hidden = false;
+  $("#stamina-count").textContent = `${points} / ${MAX_STAMINA}`;
+  if (!next) { $("#stamina-timer").textContent = ""; return; }
+  const seconds = Math.floor(next / 1000);
+  $("#stamina-timer").textContent = `次まで ${String(Math.floor(seconds / 3600)).padStart(2, "0")}:${String(Math.floor((seconds % 3600) / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
+}
+
+function beginStaminaClock() {
+  clearInterval(staminaInterval);
+  renderStamina();
+  staminaInterval = setInterval(renderStamina, 1000);
+}
+
+function confirmReplaceProgress() {
+  const progress = loadProgress();
+  if (!progress) return true;
+  if (!confirm(`途中の「${progressLabel(progress)}」を破棄して、新しい問題を始めますか？`)) return false;
+  clearProgress();
+  renderProgress();
+  return true;
+}
+
+function localSudoku(difficulty) {
+  const puzzle = generatePuzzle(difficulty);
+  if (!puzzle) throw new Error("問題を生成できませんでした。");
+  const id = `sudoku-local-${crypto.randomUUID?.() || Date.now()}`;
+  sessionStorage.setItem("yourlogic:local-sudoku", JSON.stringify({ id, difficulty, ...puzzle }));
+  return id;
+}
+
+function stableDailyPick(items) {
+  if (!items.length) return null;
+  const date = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Tokyo" }).format(new Date());
+  const score = [...date].reduce((sum, char) => ((sum * 31) + char.charCodeAt(0)) >>> 0, 7);
+  return items[score % items.length];
+}
+
+async function startSudoku(difficulty, daily = false) {
+  if (state.busy || !confirmReplaceProgress()) return;
+  state.busy = true;
+  sudokuBtn.disabled = true;
+  dailyBtn.disabled = true;
+  showStatus("問題を準備しています…");
+
+  try {
+    const available = await fetchPuzzlesByDifficulty(difficulty);
+    let target = null;
+
+    if (state.user) {
+      const cleared = state.userData?.clearedPuzzles || [];
+      const unplayed = available.filter((item) => !cleared.includes(item.id));
+      target = daily ? stableDailyPick(unplayed) : unplayed[0];
+      if (!target) {
+        const { points, updated } = staminaNow(state.userData);
+        if (points > 0 || state.userData?.isAdmin) {
+          const generated = generatePuzzle(difficulty);
+          if (!generated) throw new Error("問題生成に失敗しました。");
+          const id = await saveNewPuzzle(state.user.uid, difficulty, generated);
+          if (!state.userData?.isAdmin) {
+            await updateUserStamina(state.user.uid, points - 1, new Date(points === MAX_STAMINA ? Date.now() : updated));
+          }
+          window.location.href = `./puzzles/sudoku.html?diff=${difficulty}&id=${encodeURIComponent(id)}`;
+          return;
         }
-    }, 1000);
-}
-
-function stopStaminaTracker() {
-    if (staminaTimerId) {
-        clearInterval(staminaTimerId);
-        staminaTimerId = null;
-    }
-    const container = document.getElementById('stamina-container');
-    if (container) container.style.display = 'none';
-}
-
-// 💡 認証状態によってヘッダーUIを切り替える関数
-function updateHeaderAuthUI(user) {
-    const loginNavBtn = document.getElementById('login-nav-btn');
-    const userNavProfile = document.getElementById('user-nav-profile');
-    const headerUserName = document.getElementById('header-user-name');
-
-    if (user) {
-        loginNavBtn.style.display = 'none';
-        userNavProfile.style.display = 'flex';
-        headerUserName.textContent = user.displayName || user.email || "ユーザー";
+      }
     } else {
-        loginNavBtn.style.display = 'inline-block';
-        userNavProfile.style.display = 'none';
+      target = daily ? stableDailyPick(available) : available[0];
     }
+
+    const id = target?.id || localSudoku(difficulty);
+    window.location.href = `./puzzles/sudoku.html?diff=${difficulty}&id=${encodeURIComponent(id)}`;
+  } catch (error) {
+    console.error(error);
+    try {
+      const id = localSudoku(difficulty);
+      window.location.href = `./puzzles/sudoku.html?diff=${difficulty}&id=${encodeURIComponent(id)}`;
+      return;
+    } catch {
+      showStatus("問題を準備できませんでした。通信状態を確認して、もう一度お試しください。", "error");
+    }
+  } finally {
+    state.busy = false;
+    sudokuBtn.disabled = false;
+    dailyBtn.disabled = false;
+  }
 }
 
-// ログイン状態の監視
 onAuthStateChanged(auth, async (user) => {
-    currentUser = user;
-    updateHeaderAuthUI(user);
+  state.user = user;
+  state.userData = null;
+  if (!user) {
+    loginBtn.hidden = false;
+    userActions.hidden = true;
+    clearInterval(staminaInterval);
+    renderStamina();
+    return;
+  }
 
-    if (user) {
-        console.log("ユーザーがログインしました:", user.displayName);
-        try {
-            const userData = await fetchOrInitUser(user);
-            startStaminaTracker(userData);
-            
-            // 💡 ログイン処理が完全に終わってから自動開始をチェック
-            checkAndTriggerAutoStart();
-        } catch (e) {
-            console.error("ログイン後のスタミナ初期化エラー:", e);
-        }
-    } else {
-        console.log("ゲストモードです");
-        stopStaminaTracker();
-        
-        // 💡 ゲスト状態が確定してから自動開始をチェック
-        checkAndTriggerAutoStart();
+  try {
+    if (!(await checkUserExists(user.uid))) {
+      window.location.href = "./signup.html";
+      return;
     }
+    loginBtn.hidden = true;
+    userActions.hidden = false;
+    userName.textContent = user.displayName || user.email || "プレイヤー";
+    onSnapshot(doc(db, "users", user.uid), (snapshot) => {
+      if (!snapshot.exists()) return;
+      state.userData = snapshot.data();
+      userName.textContent = state.userData.displayName || user.displayName || "プレイヤー";
+      beginStaminaClock();
+    });
+  } catch (error) {
+    console.error(error);
+    showStatus("アカウント情報を読み込めませんでした。ゲストとしてパズルは遊べます。", "error");
+  }
 });
 
-// 🔄 安全に自動開始をトリガーする補助関数
-function checkAndTriggerAutoStart() {
-    if (isAutoProcessed) return; // 実行済みならスキップ
-    
-    const params = new URLSearchParams(window.location.search);
-    if (params.get('auto') === 'sudoku') {
-        isAutoProcessed = true; 
-        const diff = params.get('diff');
-        if (diff) {
-            selectedDifficulty = diff;
-            document.querySelectorAll('.difficulty-selector .diff-btn').forEach(b => {
-                if (b.dataset.diff === diff) b.classList.add('active');
-                else b.classList.remove('active');
-            });
-        }
-        
-        const startBtn = document.getElementById('start-sudoku-btn');
-        if (startBtn) {
-            console.log("認証状態の確定を検知。選定ロジックを安全に自動実行します。");
-            startBtn.click();
-        }
-    }
+loginBtn.addEventListener("click", async () => {
+  try {
+    const result = await signInWithPopup(auth, provider);
+    if (!(await checkUserExists(result.user.uid))) window.location.href = "./signup.html";
+  } catch (error) {
+    if (error?.code !== "auth/popup-closed-by-user") showStatus("ログインを完了できませんでした。", "error");
+  }
+});
+
+logoutBtn.addEventListener("click", async () => {
+  if (confirm("ログアウトしますか？")) await signOut(auth);
+});
+
+$("#resume-btn").addEventListener("click", () => {
+  const progress = loadProgress();
+  if (progress) window.location.href = progressUrl(progress);
+});
+
+$("#discard-progress-btn").addEventListener("click", () => {
+  if (!confirm("途中のパズルを破棄しますか？")) return;
+  clearProgress();
+  renderProgress();
+});
+
+sudokuBtn.addEventListener("click", () => startSudoku(state.sudokuDifficulty));
+dailyBtn.addEventListener("click", () => startSudoku("standard", true));
+
+$("#start-shikaku-btn").addEventListener("click", () => {
+  if (!confirmReplaceProgress()) return;
+  const size = Number($("#shikaku-size").value);
+  const id = `shikaku-${crypto.randomUUID?.() || Date.now()}`;
+  window.location.href = `./puzzles/shikaku.html?size=${size}&diff=${state.shikakuDifficulty}&id=${encodeURIComponent(id)}`;
+});
+
+window.addEventListener("yourlogic:progress", renderProgress);
+renderProgress();
+
+function registerWebMcp() {
+  const context = document.modelContext;
+  if (!context?.registerTool) return;
+  const lifecycle = new AbortController();
+  try {
+    void Promise.resolve(context.registerTool({
+      name: "configure_puzzle",
+      title: "パズルを選ぶ",
+      description: "YourLogicの画面上で、遊ぶパズル・難易度・四角に切れの盤面サイズを選択します。開始はせず、選択状態だけを変更します。",
+      inputSchema: {
+        type: "object",
+        properties: {
+          type: { type: "string", enum: ["sudoku", "shikaku"] },
+          difficulty: { type: "string", enum: ["easy", "standard", "hard", "insane"] },
+          size: { type: "integer", enum: [5, 10, 15, 20, 25, 30, 40, 50] }
+        },
+        required: ["type", "difficulty"],
+        additionalProperties: false
+      },
+      annotations: { readOnlyHint: false, untrustedContentHint: false },
+      execute(input) {
+        if (!input || !["sudoku", "shikaku"].includes(input.type)) throw new Error("type must be sudoku or shikaku");
+        if (!["easy", "standard", "hard", "insane"].includes(input.difficulty)) throw new Error("invalid difficulty");
+        if (input.type === "shikaku" && input.size !== undefined && ![5, 10, 15, 20, 25, 30, 40, 50].includes(input.size)) throw new Error("invalid size");
+        const group = document.querySelector(`[data-choice-group="${input.type}"]`);
+        const button = group?.querySelector(`[data-value="${input.difficulty}"]`);
+        if (!group || !button) throw new Error("puzzle controls are unavailable");
+        choose(group, button);
+        if (input.type === "shikaku" && input.size !== undefined) $("#shikaku-size").value = String(input.size);
+        group.closest(".puzzle-card")?.scrollIntoView({ behavior: "smooth", block: "center" });
+        return { configured: true, type: input.type, difficulty: input.difficulty, size: input.type === "shikaku" ? Number($("#shikaku-size").value) : 9 };
+      }
+    }, { signal: lifecycle.signal })).catch((error) => console.error("WebMCP registration failed", error));
+  } catch (error) {
+    console.error("WebMCP registration failed", error);
+  }
 }
 
-// 💡 ヘッダーのボタンイベントを設定
-document.getElementById('login-nav-btn').addEventListener('click', () => {
-    window.location.href = './login.html'; 
-});
+registerWebMcp();
 
-document.getElementById('logout-nav-btn').addEventListener('click', async () => {
-    try {
-        await signOut(auth);
-        alert("ログアウトしました");
-    } catch (e) {
-        console.error("ログアウトエラー:", e);
-    }
-});
-
-// 難易度ボタン切り替え
-document.querySelectorAll('.difficulty-selector .diff-btn').forEach(btn => {
-    btn.addEventListener('click', (e) => {
-        document.querySelectorAll('.difficulty-selector .diff-btn').forEach(b => b.classList.remove('active'));
-        e.target.classList.add('active');
-        selectedDifficulty = e.target.dataset.diff; 
-    });
-});
-
-// 「数独に挑戦する」ボタン（ゲートキーパー）
-document.getElementById('start-sudoku-btn').addEventListener('click', async (e) => {
-    // 💡 <a>タグ等のデフォルト遷移挙動を絶対に阻止（フライング防止）
-    if (e && e.preventDefault) e.preventDefault();
-
-    try {
-        const availablePuzzles = await fetchPuzzlesByDifficulty(selectedDifficulty);
-        let targetPuzzle = null;
-
-        if (currentUser) {
-            const userData = await fetchOrInitUser(currentUser);
-            const clearedPuzzles = userData?.clearedPuzzles || [];
-            const isAdmin = userData?.isAdmin || false;
-
-            targetPuzzle = availablePuzzles.find(p => !clearedPuzzles.includes(p.id));
-
-            if (targetPuzzle) {
-                navigateToSudoku(selectedDifficulty, targetPuzzle.id);
-                return;
-            }
-
-            console.log("未プレイの問題がありません。生成猶予を確認します...");
-            const { points, lastUpdatedMs } = calculateCurrentStamina(userData);
-
-            if (points > 0 || isAdmin) {
-                alert("⏳ 唯一解パズルを新規自動生成中... しばらくお待ちください。");
-                let newPuzzle = generatePuzzle(selectedDifficulty);
-                if (newPuzzle) {
-                    const newId = await saveNewPuzzle(currentUser.uid, selectedDifficulty, newPuzzle);
-                    
-                    if (!isAdmin) {
-                        const nextPoints = points - 1;
-                        const nextUpdatedDate = (points === MAX_STAMINA) ? new Date() : new Date(lastUpdatedMs);
-                        await updateUserStamina(currentUser.uid, nextPoints, nextUpdatedDate);
-                    }
-                    navigateToSudoku(selectedDifficulty, newId);
-                } else {
-                    alert("問題の自動生成に失敗しました。もう一度お試しください。");
-                }
-            } else {
-                alert(`⚠️ 申し訳ありません。難易度「${selectedDifficulty}」の既存ストックが切れています。\nまた、現在の生成猶予ポイントが不足しているため、新しい問題を自動生成できません。\n（5時間に1ポイント自動回復します）`);
-            }
-        } else {
-            // ゲストモード
-            if (availablePuzzles.length > 0) {
-                targetPuzzle = availablePuzzles[Math.floor(Math.random() * availablePuzzles.length)];
-                navigateToSudoku(selectedDifficulty, targetPuzzle.id);
-            } else {
-                alert(`⚠️ 現在、難易度「${selectedDifficulty}」の既存ストックがありません。\nログインすると新しい問題を生成して遊ぶことができます！`);
-            }
-        }
-    } catch (e) {
-        console.error("遷移チェックエラー:", e);
-    }
-});
-
-function navigateToSudoku(difficulty, puzzleId) {
-    window.location.href = `./puzzles/sudoku.html?diff=${difficulty}&id=${puzzleId}`;
+const auto = new URLSearchParams(location.search).get("auto");
+if (auto === "sudoku") {
+  const diff = new URLSearchParams(location.search).get("diff") || "easy";
+  startSudoku(diff);
 }
