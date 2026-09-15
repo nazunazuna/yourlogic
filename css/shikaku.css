@@ -1,118 +1,55 @@
-:root {
-    --primary-color: #1a365d;
-    --accent-color: #3182ce;
-    --bg-color: #f7fafc;
-    --card-bg: #ffffff;
-    --text-color: #2d3748;
-    --border-thin: #cbd5e0;
-    --border-thick: #1a365d;
+.game-clock { margin-left: auto; display: flex; align-items: baseline; gap: 9px; font-variant-numeric: tabular-nums; }
+.game-clock span { color: #9fb2ac; font-size: .68rem; font-weight: 900; letter-spacing: .12em; }
+.game-clock strong { color: var(--lime); font-size: 1.05rem; }
+.game-shell { width: min(1180px, calc(100% - 32px)); margin: 0 auto; padding: 34px 0 70px; }
+.game-heading { display: flex; justify-content: space-between; align-items: end; gap: 24px; margin-bottom: 20px; }
+.game-heading .eyebrow { margin-top: 20px; }
+.game-heading h1 { margin: 0; color: var(--navy); font-size: clamp(2rem, 5vw, 3.3rem); line-height: 1; letter-spacing: -.055em; }
+.back-link { color: var(--ink-soft); font-size: .84rem; font-weight: 800; text-decoration: none; }
+.back-link:hover { color: var(--blue); }
+.game-meta { display: flex; gap: 7px; }
+.game-meta span { padding: 6px 10px; border: 1px solid var(--line); border-radius: 999px; background: #fff; color: var(--ink-soft); font-size: .76rem; font-weight: 800; }
+.game-layout { display: grid; grid-template-columns: minmax(0, 760px) minmax(250px, 320px); align-items: start; gap: 22px; }
+.board-panel { min-width: 0; padding: clamp(10px, 2vw, 20px); border-color: var(--line-strong); }
+.loading { min-height: 420px; display: grid; place-items: center; color: var(--ink-soft); font-weight: 800; }
+.shikaku-board { width: 100%; aspect-ratio: 1; display: grid; overflow: hidden; border: 3px solid var(--navy); background: var(--navy); touch-action: none; user-select: none; cursor: crosshair; }
+.shikaku-board[hidden] { display: none; }
+.cell { position: relative; min-width: 0; display: grid; place-items: center; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); background: #fff; color: var(--navy); font-size: var(--cell-font, 1rem); font-weight: 900; line-height: 1; }
+.cell.draft { background: #e5f2c2; }
+.cell.preview { background: #dff3f5; }
+.cell.hint-area { background: #fff0ce; }
+.cell.hint-number { background: #ffd285; color: #703c11; }
+.cell.error { background: #ffe1e4; color: #992d38; }
+.cell.b-top { border-top: 3px solid var(--navy); }
+.cell.b-right { border-right: 3px solid var(--navy); }
+.cell.b-bottom { border-bottom: 3px solid var(--navy); }
+.cell.b-left { border-left: 3px solid var(--navy); }
+.cell.answer { background: #f1f8df; }
+.tool-panel { display: grid; gap: 14px; }
+.tool-card { padding: 18px; box-shadow: none; }
+.tool-card h2 { margin: 0; color: var(--navy); font-size: .95rem; }
+.tool-card > p { margin: 6px 0 14px; color: var(--ink-soft); font-size: .78rem; line-height: 1.55; }
+.mode-switch { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.mode { min-height: 64px; display: grid; place-items: center; gap: 2px; padding: 7px 3px; border: 1px solid var(--line); border-radius: 9px; background: #fff; color: var(--ink-soft); cursor: pointer; font-size: .74rem; font-weight: 800; }
+.mode span { font-size: 1.15rem; line-height: 1; }
+.mode.active { border-color: var(--navy); background: var(--navy); color: #fff; }
+.action-list { display: grid; gap: 8px; margin-top: 12px; }
+.text-button { padding: 8px; border: 0; background: transparent; color: var(--ink-soft); cursor: pointer; text-decoration: underline; font-size: .78rem; font-weight: 700; }
+.rule-card { padding: 16px 18px; border-left: 3px solid var(--lime-dark); color: var(--ink-soft); font-size: .78rem; }
+.rule-card strong { color: var(--navy); }
+.rule-card ul { margin: 7px 0 0; padding-left: 18px; }
+.rule-card li + li { margin-top: 3px; }
+@media (max-width: 900px) {
+  .game-layout { grid-template-columns: 1fr; }
+  .tool-panel { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .tool-panel .notice, .rule-card { grid-column: 1 / -1; }
 }
-
-* { box-sizing: border-box; margin: 0; padding: 0; }
-
-body {
-    font-family: 'Helvetica Neue', Arial, sans-serif;
-    background-color: var(--bg-color);
-    color: var(--text-color);
-    line-height: 1.6;
-    padding: 1rem;
+@media (max-width: 620px) {
+  .game-shell { width: calc(100% - 18px); padding-top: 22px; }
+  .game-heading { align-items: start; flex-direction: column; }
+  .game-heading .eyebrow { margin-top: 14px; }
+  .tool-panel { grid-template-columns: 1fr; }
+  .tool-panel .notice, .rule-card { grid-column: auto; }
+  .board-panel { border-radius: 12px; }
+  .loading { min-height: 300px; }
 }
-
-.container { max-width: 600px; margin: 0 auto; }
-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
-.back-link { color: var(--accent-color); text-decoration: none; font-weight: bold; }
-
-.auth-bar {
-    background-color: #edf2f7;
-    padding: 0.5rem 1rem;
-    border-radius: 8px;
-    margin-bottom: 1.5rem;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    font-size: 0.9rem;
-    font-weight: bold;
-}
-
-/* ツールバー（3カラム構成） */
-.input-mode-selector {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 0.5rem;
-    margin-bottom: 1.5rem;
-}
-
-.mode-btn {
-    background-color: var(--card-bg); border: 2px solid var(--border-thin);
-    padding: 0.6rem; border-radius: 6px; cursor: pointer;
-    font-weight: bold; font-size: 0.85rem; transition: all 0.2s; text-align: center;
-}
-.mode-btn:hover { border-color: var(--accent-color); background-color: #ebf8ff; }
-.mode-btn.active { background-color: var(--accent-color); color: white; border-color: var(--accent-color); }
-
-/* 四角に切れ用 盤面グリッド */
-.shikaku-board {
-    display: grid;
-    /* 列数はJSで動的に上書きします（例: grid-template-columns: repeat(10, 1fr);） */
-    background-color: var(--border-thick); 
-    border: 3px solid var(--border-thick);
-    aspect-ratio: 1 / 1; 
-    width: 100%; 
-    margin-bottom: 1.5rem;
-    box-shadow: 0 4px 10px rgba(0,0,0,0.1);
-    touch-action: none; /* スマホ操作時のスクロール防止 */
-}
-
-/* 個別のマス */
-.cell {
-    background-color: var(--card-bg); 
-    border: 1px solid var(--border-thin);
-    cursor: crosshair; user-select: none; position: relative;
-    display: flex; align-items: center; justify-content: center;
-    font-size: calc(1rem + 1vw); font-weight: bold;
-    color: var(--text-color);
-}
-
-/* -------------------------------------
-   四角に切れ用：描画・ハイライトステータス
-------------------------------------- */
-
-/* 本番モード: 枠線の描画 */
-.cell.b-top { border-top: 3px solid var(--primary-color) !important; }
-.cell.b-right { border-right: 3px solid var(--primary-color) !important; }
-.cell.b-bottom { border-bottom: 3px solid var(--primary-color) !important; }
-.cell.b-left { border-left: 3px solid var(--primary-color) !important; }
-
-/* 下書きモード: 背景色 */
-.cell.draft-bg { background-color: #c6f6d5 !important; } /* 薄い緑 */
-
-/* ドラッグ中のプレビュー用ハイライト */
-.cell.highlight-selected { background-color: #bee3f8 !important; }
-
-/* エラー（ルール違反・間違い）の赤ハイライト */
-.cell.highlight-error {
-    background-color: #ffcccc !important;
-    color: #cc0000;
-}
-
-/* ロジックヒント：注目させたい数字（濃いオレンジなど） */
-.cell.highlight-hint-target {
-    background-color: #feebc8 !important;
-    color: #dd6b20;
-}
-
-/* ロジックヒント：推導されるエリア（薄いオレンジなど） */
-.cell.highlight-hint-area {
-    background-color: #fffaf0 !important;
-}
-
-/* -------------------------------------
-   コントロールボタン
-------------------------------------- */
-.controls { display: flex; justify-content: space-between; gap: 0.5rem; }
-.action-btn {
-    flex: 1; padding: 0.75rem 0; border: 1px solid var(--border-thin);
-    background-color: var(--card-bg); border-radius: 6px; font-weight: bold; cursor: pointer; text-align: center;
-    font-size: 0.9rem;
-}
-.action-btn:hover { background-color: #edf2f7; }
