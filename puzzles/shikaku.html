@@ -1,42 +1,77 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ja">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>四角に切れ (Shikaku) - Your Logic</title>
-    <link rel="stylesheet" href="../css/shikaku.css">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="四角に切れを、下書き・ヒント・途中保存付きで遊べます。">
+  <title>四角に切れ — YourLogic</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='15' fill='%23142d35'/%3E%3Cpath d='M16 15h32v34H16zM27 15v34M38 15v34M16 27h32M16 38h32' fill='none' stroke='%23c8f135' stroke-width='3'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="../css/base.css">
+  <link rel="stylesheet" href="../css/shikaku.css">
 </head>
 <body>
-
-    <div class="container">
-        <header>
-            <a href="../index.html" class="back-link">← ホームへ戻る</a>
-            <h2>Your Logic - 四角に切れ</h2>
-        </header>
-
-        <div class="auth-bar">
-            <div id="game-meta-text">サイズ: -- / 難易度: --</div>
-            
-            <div class="timer-area">⏱️ 経過時間: <span id="timer">00:00</span></div>
-        </div>
-
-        <div class="input-mode-selector">
-            <button id="mode-draw-btn" class="mode-btn active">本番 (枠線)</button>
-            <button id="mode-draft-btn" class="mode-btn">下書き (色塗)</button>
-            <button id="mode-erase-btn" class="mode-btn">消しゴム</button>
-        </div>
-
-        <div class="shikaku-board" id="board"></div>
-
-        <div id="hint-text-area" style="margin-top: 15px; padding: 10px; border-radius: 5px; min-height: 40px; font-weight: bold; text-align: center; background-color: #f0f0f0; color: #333; display: none;"></div>
-
-        <div class="controls">
-            <button class="action-btn" id="check-btn">答え合わせ</button>
-            <button class="action-btn" id="hint-btn">ヒント</button>
-            <button class="action-btn" id="giveup-btn">諦める</button>
-        </div>
+  <header class="site-header">
+    <div class="header-inner">
+      <a class="brand" href="../index.html"><span class="brand-mark" aria-hidden="true">YL</span><span class="brand-text">YourLogic</span></a>
+      <nav class="site-nav" aria-label="パズルナビゲーション"><a href="../index.html#puzzles">パズルを変える</a></nav>
+      <div class="game-clock" aria-label="経過時間"><span>TIME</span><strong id="timer">00:00</strong></div>
     </div>
+  </header>
 
-    <script type="module" src="../js/puzzles/shikaku/shikaku.js"></script>
+  <main class="game-shell">
+    <section class="game-heading">
+      <div>
+        <a class="back-link" href="../index.html">← パズル一覧</a>
+        <p class="eyebrow">AREA DIVISION</p>
+        <h1>四角に切れ</h1>
+      </div>
+      <div class="game-meta">
+        <span id="size-label">10 × 10</span>
+        <span id="difficulty-label">中級</span>
+      </div>
+    </section>
+
+    <div class="game-layout">
+      <section class="board-panel surface" aria-label="四角に切れ盤面">
+        <div id="loading" class="loading">盤面を作っています…</div>
+        <div id="board" class="shikaku-board" role="grid" aria-label="四角に切れの盤面" hidden></div>
+      </section>
+
+      <aside class="tool-panel">
+        <section class="tool-card surface">
+          <h2>入力方法</h2>
+          <p>始点から終点までドラッグして範囲を選びます。</p>
+          <div class="mode-switch" role="group" aria-label="入力モード">
+            <button class="mode active" data-mode="draw" type="button" aria-pressed="true"><span>▣</span>枠線</button>
+            <button class="mode" data-mode="draft" type="button" aria-pressed="false"><span>▒</span>下書き</button>
+            <button class="mode" data-mode="erase" type="button" aria-pressed="false"><span>×</span>消す</button>
+          </div>
+        </section>
+
+        <div id="message" class="notice" role="status" aria-live="polite" hidden></div>
+
+        <section class="tool-card surface">
+          <h2>サポート</h2>
+          <div class="action-list">
+            <button id="check-btn" class="btn btn-primary btn-block" type="button">答え合わせ</button>
+            <button id="hint-btn" class="btn btn-secondary btn-block" type="button">ヒントを見る</button>
+            <button id="clear-btn" class="btn btn-secondary btn-block" type="button">入力をすべて消す</button>
+            <button id="answer-btn" class="text-button" type="button">解答を表示する</button>
+          </div>
+        </section>
+
+        <section class="rule-card">
+          <strong>ルール</strong>
+          <ul>
+            <li>各四角形に数字は1つだけ</li>
+            <li>数字と四角形の面積を一致させる</li>
+            <li>盤面をすべて埋める</li>
+          </ul>
+        </section>
+      </aside>
+    </div>
+  </main>
+
+  <script type="module" src="../js/puzzles/shikaku/shikaku.js"></script>
 </body>
 </html>
