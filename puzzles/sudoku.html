@@ -6,8 +6,8 @@
   <meta name="description" content="数独を、メモ・ヒント・途中保存付きで遊べます。">
   <title>数独 — YourLogic</title>
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='15' fill='%23142d35'/%3E%3Cpath d='M16 15h32v34H16zM27 15v34M38 15v34M16 27h32M16 38h32' fill='none' stroke='%23c8f135' stroke-width='3'/%3E%3C/svg%3E">
-  <link rel="stylesheet" href="../css/base.css">
-  <link rel="stylesheet" href="../css/sudoku.css?v=20260917-1">
+  <link rel="stylesheet" href="../css/base.css?v=20260917-3">
+  <link rel="stylesheet" href="../css/sudoku.css?v=20260917-3">
 </head>
 <body>
   <header class="site-header">
@@ -27,6 +27,7 @@
       </div>
       <div class="heading-status">
         <span id="play-mode-label" class="play-mode-label" hidden></span>
+        <span id="difficulty-label" class="difficulty-label">初級</span>
         <div id="auth-status-text" class="player-status">プレイヤー状態を確認中…</div>
       </div>
     </section>
@@ -62,9 +63,16 @@
           <button id="clear-mistakes-btn" class="btn btn-danger btn-block" type="button">該当する数字を全て消す</button>
         </section>
         <div id="hint-text-area" class="notice hint-box" role="status" aria-live="polite" style="display:none"></div>
+        <section id="completion-panel" class="completion-panel surface" aria-live="polite" hidden>
+          <p class="eyebrow">PUZZLE CLEAR</p>
+          <strong id="completion-title">クリアしました！</strong>
+          <p id="completion-copy">同じ条件でもう一問遊べます。</p>
+          <button id="retry-btn" class="btn btn-accent btn-block" type="button">同じ条件でもう一問</button>
+        </section>
         <section class="tool-card surface">
           <h2>サポート</h2>
           <div class="controls">
+            <button class="btn btn-secondary btn-block action-btn" id="rules-btn" type="button">ルール説明</button>
             <button class="btn btn-primary btn-block action-btn" id="check-btn" type="button">答え合わせ</button>
             <button class="btn btn-secondary btn-block action-btn" id="hint-btn" type="button">ヒントを見る</button>
             <button class="btn btn-secondary btn-block action-btn" id="undo-btn" type="button" disabled>一個もどる</button>
@@ -72,7 +80,7 @@
           </div>
         </section>
         <section class="rule-card">
-          <strong>入力のコツ</strong>
+          <strong>操作方法</strong>
           <ul>
             <li>空白キーまたは M でメモ切替</li>
             <li>矢印キーで選択マスを移動</li>
@@ -84,6 +92,27 @@
     </div>
   </main>
 
-  <script type="module" src="../js/puzzles/sudoku/sudoku.js?v=20260917-1"></script>
+  <dialog id="rules-dialog" class="rules-dialog" aria-labelledby="rules-dialog-title">
+    <form method="dialog" class="rules-dialog-card">
+      <button class="dialog-close" value="close" aria-label="ルール説明を閉じる" type="submit">×</button>
+      <p class="eyebrow">HOW TO SOLVE</p>
+      <h2 id="rules-dialog-title">数独のルール</h2>
+      <div class="rule-tabs" role="tablist" aria-label="ルール説明">
+        <button class="rule-tab active" type="button" role="tab" aria-selected="true">基本ルール</button>
+      </div>
+      <section class="rule-panel" role="tabpanel">
+        <div class="rule-diagram sudoku-rule-diagram" aria-hidden="true">
+          <span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><span>6</span><span>7</span><span>8</span><span>9</span>
+        </div>
+        <ul>
+          <li>空いているマスに1〜9の数字を入れます。</li>
+          <li>同じ行・同じ列には、同じ数字を重ねません。</li>
+          <li>太線で囲まれた3×3の範囲にも、1〜9を一つずつ入れます。</li>
+        </ul>
+      </section>
+    </form>
+  </dialog>
+
+  <script type="module" src="../js/puzzles/sudoku/sudoku.js?v=20260917-3"></script>
 </body>
 </html>

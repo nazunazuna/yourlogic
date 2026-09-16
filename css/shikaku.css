@@ -19,9 +19,15 @@
 .draft-overlay { position: absolute; inset: 0; z-index: 5; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
 .draft-line { stroke: var(--blue); stroke-width: 2.5; stroke-linecap: round; opacity: .9; vector-effect: non-scaling-stroke; }
 .draft-line.preview-line { stroke: var(--orange); stroke-dasharray: 5 4; opacity: .8; }
-.cell.preview { background: #dff3f5; }
+.area-tooltip { position: fixed; z-index: 80; min-width: 58px; padding: 6px 9px; border: 1px solid rgba(255,255,255,.28); border-radius: 8px; background: rgba(20,45,53,.94); color: #fff; box-shadow: 0 8px 20px rgba(20,45,53,.22); pointer-events: none; transform: translate(14px, -135%); font-size: .74rem; font-weight: 900; text-align: center; white-space: nowrap; }
+.cell.preview-top { border-top: 3px solid var(--orange) !important; }
+.cell.preview-right { border-right: 3px solid var(--orange) !important; }
+.cell.preview-bottom { border-bottom: 3px solid var(--orange) !important; }
+.cell.preview-left { border-left: 3px solid var(--orange) !important; }
+.cell.hint-focus { background: #eef8f9; outline: 2px dashed var(--blue); outline-offset: -3px; }
 .cell.hint-area { background: #fff0ce; }
 .cell.hint-number { background: #ffd285; color: #703c11; }
+.cell.clue-complete { color: #91a09a; font-weight: 750; }
 .cell.error { background: #ffe1e4; color: #992d38; }
 .cell.b-top { border-top: 3px solid var(--navy); }
 .cell.b-right { border-right: 3px solid var(--navy); }
@@ -37,6 +43,10 @@
 .mode span { font-size: 1.15rem; line-height: 1; }
 .mode.active { border-color: var(--navy); background: var(--navy); color: #fff; }
 .action-list { display: grid; gap: 8px; margin-top: 12px; }
+.hint-steps { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 5px; margin-top: 2px; }
+.hint-steps span { min-height: 30px; display: grid; place-items: center; padding: 4px 6px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface-2); color: var(--ink-soft); font-size: .67rem; font-weight: 850; text-align: center; }
+.hint-steps span.active { border-color: var(--blue); background: #e9f8fa; color: #164f59; }
+.hint-steps span.done { border-color: #b7d98e; background: #f0f9e7; color: #3f6717; }
 .text-button { padding: 8px; border: 0; background: transparent; color: var(--ink-soft); cursor: pointer; text-decoration: underline; font-size: .78rem; font-weight: 700; }
 .rule-card { padding: 16px 18px; border-left: 3px solid var(--lime-dark); color: var(--ink-soft); font-size: .78rem; }
 .rule-card strong { color: var(--navy); }
@@ -45,14 +55,14 @@
 @media (max-width: 900px) {
   .game-layout { grid-template-columns: 1fr; }
   .tool-panel { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .tool-panel .notice, .rule-card { grid-column: 1 / -1; }
+  .tool-panel .notice, .tool-panel .completion-panel, .rule-card { grid-column: 1 / -1; }
 }
 @media (max-width: 620px) {
   .game-shell { width: calc(100% - 18px); padding-top: 22px; }
   .game-heading { align-items: start; flex-direction: column; }
   .game-heading .eyebrow { margin-top: 14px; }
   .tool-panel { grid-template-columns: 1fr; }
-  .tool-panel .notice, .rule-card { grid-column: auto; }
+  .tool-panel .notice, .tool-panel .completion-panel, .rule-card { grid-column: auto; }
   .board-panel { border-radius: 12px; }
   .loading { min-height: 300px; }
 }

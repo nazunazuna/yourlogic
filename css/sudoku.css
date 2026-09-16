@@ -60,7 +60,7 @@
 @media (max-width: 850px) {
   .game-layout { grid-template-columns: 1fr; }
   .side-column { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .hint-box { grid-column: 1 / -1; }
+  .hint-box, .completion-panel, .mistake-panel { grid-column: 1 / -1; }
 }
 @media (max-width: 620px) {
   .game-shell { width: calc(100% - 18px); padding-top: 22px; }
@@ -72,6 +72,6 @@
   .memo-button { width: 100%; }
   .num-pad { grid-template-columns: repeat(5, 1fr); }
   .side-column { grid-template-columns: 1fr; }
-  .hint-box { grid-column: auto; }
+  .hint-box, .completion-panel, .mistake-panel { grid-column: auto; }
   .board-wrap { border-radius: 12px; }
 }

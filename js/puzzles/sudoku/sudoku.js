@@ -1,8 +1,8 @@
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-import { auth, fetchOrInitUser, fetchPuzzleById, markPuzzleFinished, saveClearRecord } from "../../services/firebaseService.js?v=20260917-1";
-import { executeHintLogic } from "./sudokuHint.js?v=20260917-1";
-import { clearProgress, loadProgress, saveProgress } from "../../core/progressStore.js?v=20260917-1";
-import { bindUndoShortcut, createUndoHistory } from "../../core/historyStore.js?v=20260917-1";
+import { auth, fetchOrInitUser, fetchPuzzleById, markPuzzleFinished, saveClearRecord } from "../../services/firebaseService.js?v=20260917-3";
+import { executeHintLogic } from "./sudokuHint.js?v=20260917-3";
+import { clearProgress, loadProgress, saveProgress } from "../../core/progressStore.js?v=20260917-3";
+import { bindUndoShortcut, createUndoHistory } from "../../core/historyStore.js?v=20260917-3";
 
 // グローバル状態
 let currentUser = null;
@@ -33,6 +33,11 @@ const hintTextArea = document.getElementById('hint-text-area');
 const mistakePanel = document.getElementById('mistake-panel');
 const mistakeMessageEl = document.getElementById('mistake-message');
 const undoButton = document.getElementById('undo-btn');
+const difficultyLabel = document.getElementById('difficulty-label');
+const completionPanel = document.getElementById('completion-panel');
+const completionCopy = document.getElementById('completion-copy');
+const retryButton = document.getElementById('retry-btn');
+const rulesDialog = document.getElementById('rules-dialog');
 const timerContainer = document.querySelector('.timer-area'); 
 const gameTimerEl = document.getElementById('timer'); 
 
@@ -46,6 +51,25 @@ const challengeSessionKey = targetPuzzleId ? `yourlogic:challenge-session:${targ
 const challengeReentry = Boolean(isChallenge && challengeSessionKey && sessionStorage.getItem(challengeSessionKey) === 'active');
 if (isChallenge && challengeSessionKey && !challengeReentry) sessionStorage.setItem(challengeSessionKey, 'active');
 const isResume = !isChallenge && urlParams.get('resume') === 'true';
+const difficultyNames = { easy: '初級', standard: '中級', hard: '上級', insane: '超上級' };
+
+function renderDifficulty() {
+    if (difficultyLabel) difficultyLabel.textContent = difficultyNames[currentDifficulty] || currentDifficulty;
+}
+
+function showCompletionPanel() {
+    if (!completionPanel) return;
+    completionPanel.hidden = false;
+    if (isChallenge) {
+        completionCopy.textContent = '生成ポイントを1使って、次のランダムチャレンジに挑戦できます。';
+        retryButton.textContent = 'もう一度チャレンジ';
+    } else {
+        completionCopy.textContent = `${difficultyNames[currentDifficulty] || currentDifficulty}の数独を、もう一問遊べます。`;
+        retryButton.textContent = '同じ条件でもう一問';
+    }
+}
+
+renderDifficulty();
 
 if (isChallenge) clearProgress();
 const playModeLabel = document.getElementById('play-mode-label');
@@ -123,6 +147,7 @@ onAuthStateChanged(auth, async (user) => {
 
             if (isResume && savedProgress) {
                 currentDifficulty = savedProgress.difficulty || currentDifficulty;
+                renderDifficulty();
                 renderBoard(savedProgress.board);
                 startGameTimer(savedProgress.elapsedTime); 
                 
@@ -190,6 +215,7 @@ async function loadSpecificPuzzle(puzzleId, savedProgress = null) {
     }
     currentPuzzleId = puzzleId;
     currentDifficulty = puzzleData.difficulty || currentDifficulty;
+    renderDifficulty();
     displayPuzzle(puzzleData.problemData, puzzleData.solutionData);
     startGameTimer();
 
@@ -610,17 +636,17 @@ document.addEventListener('keydown', (e) => {
     }
 });
 
-// 仮置きモード切替ボタン
+// メモモード切替ボタン
 if (memoBtn) {
     memoBtn.addEventListener('click', () => {
         if (guardFinished()) return;
         isMemoMode = !isMemoMode;
         if (isMemoMode) {
             memoBtn.classList.add('active');
-            memoBtn.innerText = "仮置き: ON";
+            memoBtn.innerText = "メモ: ON";
         } else {
             memoBtn.classList.remove('active');
-            memoBtn.innerText = "仮置き: OFF";
+            memoBtn.innerText = "メモ: OFF";
         }
     });
 }
@@ -629,6 +655,7 @@ if (memoBtn) {
 function displayPuzzle(boardStr, solutionStr) {
     gameFinished = false;
     completionState = null;
+    if (completionPanel) completionPanel.hidden = true;
     dismissMistakes();
     history.clear();
     updateHighlight(null);
@@ -678,6 +705,7 @@ async function executeCheck(isAuto = false) {
         alert(`🎉 おめでとうございます！正解です！！\n⏱️ クリアタイム: ${minutes}分${seconds}秒`);
         hintTextArea.innerText = `🎉 クリア！ ${minutes}分${seconds}秒で完成しました。`;
         hintTextArea.style.display = 'block';
+        showCompletionPanel();
         
         if (currentPuzzleId) {
             try {
@@ -704,6 +732,16 @@ document.getElementById('hint-btn').addEventListener('click', () => {
     const result = executeHintLogic(currentSolution, cells, hintTextArea);
     if (result?.kind === 'mistake') showMistakes(result.indexes, result.message);
     else dismissMistakes();
+});
+
+document.getElementById('rules-btn').addEventListener('click', () => {
+    if (typeof rulesDialog?.showModal === 'function') rulesDialog.showModal();
+});
+
+retryButton?.addEventListener('click', () => {
+    window.location.href = isChallenge
+        ? '../index.html?auto=challenge'
+        : `../index.html?auto=sudoku&diff=${encodeURIComponent(currentDifficulty)}`;
 });
 
 async function forfeitChallenge(destination = "../index.html") {
