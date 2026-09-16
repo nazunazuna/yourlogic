@@ -137,6 +137,19 @@
     </section>
   </main>
 
+  <dialog id="stock-dialog" class="stock-dialog" aria-labelledby="stock-dialog-title">
+    <form method="dialog" class="stock-dialog-card">
+      <button class="dialog-close" value="cancel" aria-label="閉じる" type="submit">×</button>
+      <p class="eyebrow">PUZZLE STOCK</p>
+      <h2 id="stock-dialog-title">未プレイの問題がありません</h2>
+      <p id="stock-dialog-message">ログインすると、生成ポイントを使って新しい問題を作れます。</p>
+      <div class="dialog-actions">
+        <button class="btn btn-secondary" value="cancel" type="submit">閉じる</button>
+        <button id="dialog-login-btn" class="btn btn-primary" value="login" type="submit">Googleでログイン</button>
+      </div>
+    </form>
+  </dialog>
+
   <footer class="site-footer">© 2026 YourLogic</footer>
   <script type="module" src="./js/index.js"></script>
 </body>
