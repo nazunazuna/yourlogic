@@ -27,6 +27,43 @@ export const db = getFirestore(app);
 export const provider = new GoogleAuthProvider();
 provider.setCustomParameters({ prompt: "select_account" });
 
+const DAILY_PUZZLE_KEY = "yourlogic:daily-puzzle:v1";
+
+/** 日本時間のカレンダー日を YYYY-MM-DD で返します。 */
+export function getJstDateKey(date = new Date()) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Tokyo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date);
+  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return `${values.year}-${values.month}-${values.day}`;
+}
+
+export function getCachedDailyPuzzle(puzzleId = null) {
+  try {
+    const cached = JSON.parse(localStorage.getItem(DAILY_PUZZLE_KEY) || "null");
+    if (!cached || cached.dateKey !== getJstDateKey()) {
+      localStorage.removeItem(DAILY_PUZZLE_KEY);
+      return null;
+    }
+    if (puzzleId && cached.id !== puzzleId) return null;
+    return decodePuzzleDataFromFirestore(cached);
+  } catch {
+    localStorage.removeItem(DAILY_PUZZLE_KEY);
+    return null;
+  }
+}
+
+export function cacheDailyPuzzle(puzzle) {
+  if (!puzzle?.id || puzzle.dateKey !== getJstDateKey()) {
+    throw new Error("今日のおすすめ問題のデータが正しくありません。");
+  }
+  localStorage.setItem(DAILY_PUZZLE_KEY, JSON.stringify(puzzle));
+  return puzzle;
+}
+
 function toMillis(value, fallback = Date.now()) {
   if (value?.toMillis) return value.toMillis();
   if (value?.toDate) return value.toDate().getTime();
@@ -108,6 +145,8 @@ export function fetchPuzzlesByDifficulty(difficulty, type = "sudoku", size = nul
 }
 
 export async function fetchPuzzleById(puzzleId) {
+  const dailyPuzzle = getCachedDailyPuzzle(puzzleId);
+  if (dailyPuzzle) return dailyPuzzle;
   const snapshot = await getDoc(doc(db, "puzzles", puzzleId));
   return snapshot.exists()
     ? decodePuzzleDataFromFirestore({ id: snapshot.id, ...snapshot.data() })
@@ -144,14 +183,15 @@ export async function createGeneratedPuzzle(user, specification) {
     const userData = userSnapshot.data();
     const stamina = calculateGenerationPoints(userData, now);
     const isAdmin = userData.isAdmin === true;
-    if (!isAdmin && stamina.points <= 0) {
+    const adminFree = isAdmin && specification.chargeAdmin !== true;
+    if (!adminFree && stamina.points <= 0) {
       const error = new Error("生成ポイントがありません。");
       error.code = "generation-points-empty";
       throw error;
     }
 
-    const remaining = isAdmin ? stamina.points : stamina.points - 1;
-    const timerBase = !isAdmin && stamina.points >= MAX_GENERATION_POINTS ? now : stamina.updatedAtMs;
+    const remaining = adminFree ? stamina.points : stamina.points - 1;
+    const timerBase = !adminFree && stamina.points >= MAX_GENERATION_POINTS ? now : stamina.updatedAtMs;
     transaction.set(puzzleRef, puzzleDocument(user.uid, specification));
     transaction.update(userRef, {
       generationPoints: remaining,
@@ -240,6 +280,7 @@ function finishRecord(puzzleId, outcome, metadata = {}) {
     difficulty: metadata.difficulty || "unknown",
     size: Number(metadata.size || (metadata.type === "sudoku" ? 9 : 0)),
     elapsedTime: Number(metadata.elapsedTime || 0),
+    mode: metadata.mode || "normal",
     finishedAt: new Date().toISOString(),
   };
 }
