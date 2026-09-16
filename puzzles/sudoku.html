@@ -52,12 +52,19 @@
       </section>
 
       <aside class="side-column">
+        <section id="mistake-panel" class="mistake-panel" role="alert" aria-live="assertive" hidden>
+          <button id="dismiss-mistakes-btn" class="mistake-close" type="button" aria-label="警告と赤枠を閉じる">×</button>
+          <strong>❌ この数字は間違えています。</strong>
+          <p id="mistake-message">消してやり直してみましょう。</p>
+          <button id="clear-mistakes-btn" class="btn btn-danger btn-block" type="button">該当する数字を全て消す</button>
+        </section>
         <div id="hint-text-area" class="notice hint-box" role="status" aria-live="polite" style="display:none"></div>
         <section class="tool-card surface">
           <h2>サポート</h2>
           <div class="controls">
             <button class="btn btn-primary btn-block action-btn" id="check-btn" type="button">答え合わせ</button>
             <button class="btn btn-secondary btn-block action-btn" id="hint-btn" type="button">ヒントを見る</button>
+            <button class="btn btn-secondary btn-block action-btn" id="undo-btn" type="button" disabled>一個もどる</button>
             <button class="text-button action-btn" id="giveup-btn" type="button">解答を表示する</button>
           </div>
         </section>
@@ -66,6 +73,7 @@
           <ul>
             <li>空白キーまたは M でメモ切替</li>
             <li>矢印キーで選択マスを移動</li>
+            <li>⌘Z / Ctrl+Zで一個もどる</li>
             <li>入力内容は自動で保存</li>
           </ul>
         </section>
