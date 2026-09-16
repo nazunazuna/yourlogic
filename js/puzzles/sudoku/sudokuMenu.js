@@ -1,5 +1,5 @@
 import { onAuthStateChanged, signInWithPopup, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-import { auth, provider, fetchOrInitUser, fetchPuzzlesByDifficulty, saveNewPuzzle, updateUserStamina } from "../../services/firebaseService.js";
+import { auth, provider, fetchOrInitUser, fetchPuzzlesByDifficulty, saveNewPuzzle, updateUserStamina } from "../../services/firebaseService.js?v=20260916-2";
 import { generatePuzzle } from "./sudokuGenerator.js";
 
 // グローバル状態

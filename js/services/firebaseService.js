@@ -4,6 +4,10 @@ import {
   arrayUnion, collection, doc, getDoc, getDocs, getFirestore, query,
   runTransaction, serverTimestamp, setDoc, updateDoc, where,
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import {
+  decodePuzzleDataFromFirestore,
+  encodePuzzleDataForFirestore,
+} from "../core/puzzleDataCodec.js?v=20260916-2";
 
 const firebaseConfig = {
   apiKey: "AIzaSyCkbdX-B6FfIVplmG98tIvxO0uUv-mYDSw",
@@ -93,7 +97,7 @@ export async function fetchPuzzles({ type, difficulty, size = null }) {
   ));
   const puzzles = [];
   snapshot.forEach((item) => {
-    const value = { id: item.id, ...item.data() };
+    const value = decodePuzzleDataFromFirestore({ id: item.id, ...item.data() });
     if (size === null || Number(value.size) === Number(size)) puzzles.push(value);
   });
   return puzzles;
@@ -105,20 +109,23 @@ export function fetchPuzzlesByDifficulty(difficulty, type = "sudoku", size = nul
 
 export async function fetchPuzzleById(puzzleId) {
   const snapshot = await getDoc(doc(db, "puzzles", puzzleId));
-  return snapshot.exists() ? { id: snapshot.id, ...snapshot.data() } : null;
+  return snapshot.exists()
+    ? decodePuzzleDataFromFirestore({ id: snapshot.id, ...snapshot.data() })
+    : null;
 }
 
 function puzzleDocument(uid, { type, difficulty, size, puzzleData, parameters = {} }) {
   const problemData = puzzleData.problemData ?? puzzleData.puzzleData;
   const solutionData = puzzleData.solutionData ?? puzzleData.solutionRects;
   if (!problemData || !solutionData) throw new Error("問題データまたは解答データがありません。");
+  const encoded = encodePuzzleDataForFirestore({
+    type, size, problemData, solutionData, parameters,
+  });
   return {
     type,
     difficulty,
     size: Number(size || (type === "sudoku" ? 9 : 0)),
-    problemData,
-    solutionData,
-    parameters,
+    ...encoded,
     generatedBy: uid,
     createdAt: serverTimestamp(),
   };

@@ -301,7 +301,7 @@
         import { onAuthStateChanged, updateProfile, signOut, deleteUser, reauthenticateWithPopup } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
         // 💡 重複チェックに必要な Firestore メソッド（collection, query, where, getDocs）を追加インポート
         import { doc, updateDoc, deleteDoc, collection, query, where, getDocs } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
-        import { auth, db, provider, fetchOrInitUser } from "./js/services/firebaseService.js";
+        import { auth, db, provider, fetchOrInitUser } from "./js/services/firebaseService.js?v=20260916-2";
 
         const loadingScreen = document.getElementById('loading-screen');
         const settingsContent = document.getElementById('settings-content');
