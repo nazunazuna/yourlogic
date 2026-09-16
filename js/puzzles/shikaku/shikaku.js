@@ -1,8 +1,8 @@
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-import { auth, fetchPuzzleById, markPuzzleFinished, saveClearRecord } from "../../services/firebaseService.js?v=20260917-1";
-import { clearProgress, loadProgress, saveProgress } from "../../core/progressStore.js?v=20260917-1";
-import { bindUndoShortcut, createUndoHistory } from "../../core/historyStore.js?v=20260917-1";
-import { getShikakuHint } from "./shikakuHint.js?v=20260917-1";
+import { auth, fetchPuzzleById, markPuzzleFinished, saveClearRecord } from "../../services/firebaseService.js?v=20260917-3";
+import { clearProgress, loadProgress, saveProgress } from "../../core/progressStore.js?v=20260917-3";
+import { bindUndoShortcut, createUndoHistory } from "../../core/historyStore.js?v=20260917-3";
+import { completeForcedShikakuRectangles, getShikakuHint } from "./shikakuHint.js?v=20260917-3";
 
 const params = new URLSearchParams(location.search);
 const allowedSizes = [5, 10, 15, 20, 25, 30, 40, 50];
@@ -24,6 +24,14 @@ const loading = document.getElementById("loading");
 const message = document.getElementById("message");
 const timer = document.getElementById("timer");
 const undoButton = document.getElementById("undo-btn");
+const hintButton = document.getElementById("hint-btn");
+const hintStepFocus = document.getElementById("hint-step-focus");
+const hintStepLogic = document.getElementById("hint-step-logic");
+const completionPanel = document.getElementById("completion-panel");
+const completionCopy = document.getElementById("completion-copy");
+const retryButton = document.getElementById("retry-btn");
+const rulesDialog = document.getElementById("rules-dialog");
+const areaTooltip = document.getElementById("area-tooltip");
 const cells = [];
 let boardNumbers = [];
 let solutionRects = [];
@@ -41,6 +49,8 @@ let finished = false;
 let completionState = null;
 let checkingSolution = false;
 let currentUser = null;
+let pendingHint = null;
+let hintStage = 0;
 
 onAuthStateChanged(auth, async (user) => {
   currentUser = user;
@@ -94,6 +104,9 @@ function eachCell(rect, callback) {
     for (let x = rect.x1; x <= rect.x2; x++) callback(x, y);
   }
 }
+function rectArea(rect) {
+  return (rect.x2 - rect.x1 + 1) * (rect.y2 - rect.y1 + 1);
+}
 function sameState(a, b) { return JSON.stringify(a) === JSON.stringify(b); }
 
 function formatTime(seconds) {
@@ -106,6 +119,39 @@ function showMessage(text, tone = "") {
   message.className = `notice ${tone === "hint" ? "" : tone}`.trim();
   message.hidden = !text;
 }
+
+function renderHintStage() {
+  hintStepFocus?.classList.toggle("active", hintStage === 0);
+  hintStepFocus?.classList.toggle("done", hintStage >= 1);
+  hintStepLogic?.classList.toggle("active", hintStage === 1);
+  hintStepLogic?.classList.toggle("done", hintStage >= 2);
+  if (!hintButton) return;
+  hintButton.textContent = hintStage === 1
+    ? "ヒント2：ロジックと答えを見る"
+    : hintStage === 2
+      ? "次のヒント1：着目箇所を見る"
+      : "ヒント1：着目箇所を見る";
+}
+
+function resetHintStage() {
+  pendingHint = null;
+  hintStage = 0;
+  renderHintStage();
+}
+
+function showCompletionPanel() {
+  if (!completionPanel) return;
+  completionPanel.hidden = false;
+  if (isChallenge) {
+    completionCopy.textContent = "生成ポイントを1使って、次のランダムチャレンジに挑戦できます。";
+    retryButton.textContent = "もう一度チャレンジ";
+  } else {
+    completionCopy.textContent = `${difficultyNames[difficulty]}・${size} × ${size}の四角に切れを、もう一問遊べます。`;
+    retryButton.textContent = "同じ条件でもう一問";
+  }
+}
+
+renderHintStage();
 
 function guardFinished() {
   if (!finished) return false;
@@ -123,6 +169,7 @@ function snapshot() {
 function applySnapshot(saved) {
   userRects = (saved.userRects || []).map((rect) => ({ ...rect }));
   draftEdges = new Set(saved.draftEdges || []);
+  resetHintStage();
   clearHighlights();
   render();
   persist();
@@ -196,15 +243,15 @@ function createBoard() {
 }
 
 function clearHighlights() {
-  board.querySelectorAll(".preview,.hint-area,.hint-number,.error").forEach((cell) => {
-    cell.classList.remove("preview", "hint-area", "hint-number", "error");
+  board.querySelectorAll(".preview-top,.preview-right,.preview-bottom,.preview-left,.hint-focus,.hint-area,.hint-number,.error").forEach((cell) => {
+    cell.classList.remove("preview-top", "preview-right", "preview-bottom", "preview-left", "hint-focus", "hint-area", "hint-number", "error");
   });
 }
 
 function render() {
   for (let y = 0; y < size; y++) {
     for (let x = 0; x < size; x++) {
-      cells[y][x].classList.remove("preview", "b-top", "b-right", "b-bottom", "b-left", "answer");
+      cells[y][x].classList.remove("preview-top", "preview-right", "preview-bottom", "preview-left", "b-top", "b-right", "b-bottom", "b-left", "answer", "clue-complete");
     }
   }
   userRects.forEach((rect) => eachCell(rect, (x, y) => {
@@ -213,12 +260,37 @@ function render() {
     if (y === rect.y2) cells[y][x].classList.add("b-bottom");
     if (x === rect.x1) cells[y][x].classList.add("b-left");
   }));
+  userRects.forEach((rect) => {
+    const clues = [];
+    eachCell(rect, (x, y) => { if (Number(boardNumbers[y][x]) > 0) clues.push({ x, y, value: Number(boardNumbers[y][x]) }); });
+    const rectArea = (rect.x2 - rect.x1 + 1) * (rect.y2 - rect.y1 + 1);
+    if (clues.length === 1 && clues[0].value === rectArea) cells[clues[0].y][clues[0].x].classList.add("clue-complete");
+  });
   renderDraftLines();
 }
 
 function previewRect(rect) {
-  board.querySelectorAll(".preview").forEach((cell) => cell.classList.remove("preview"));
-  eachCell(rect, (x, y) => cells[y][x].classList.add("preview"));
+  board.querySelectorAll(".preview-top,.preview-right,.preview-bottom,.preview-left").forEach((cell) => {
+    cell.classList.remove("preview-top", "preview-right", "preview-bottom", "preview-left");
+  });
+  eachCell(rect, (x, y) => {
+    if (y === rect.y1) cells[y][x].classList.add("preview-top");
+    if (x === rect.x2) cells[y][x].classList.add("preview-right");
+    if (y === rect.y2) cells[y][x].classList.add("preview-bottom");
+    if (x === rect.x1) cells[y][x].classList.add("preview-left");
+  });
+}
+
+function showAreaTooltip(rect, event) {
+  if (!areaTooltip || mode !== "draw") return;
+  areaTooltip.textContent = `${rectArea(rect)}マス`;
+  areaTooltip.style.left = `${event.clientX}px`;
+  areaTooltip.style.top = `${event.clientY}px`;
+  areaTooltip.hidden = false;
+}
+
+function hideAreaTooltip() {
+  if (areaTooltip) areaTooltip.hidden = true;
 }
 
 function cellFromEvent(event) {
@@ -253,12 +325,17 @@ board.addEventListener("pointerdown", (event) => {
   if (!coord) return;
   event.preventDefault();
   board.setPointerCapture?.(event.pointerId);
+  resetHintStage();
   clearHighlights();
   dragStart = coord;
   dragEnd = coord;
   dragPath = [coord];
   if (mode === "draft") renderDraftLines(dragPath);
-  else previewRect(normalizedRect(dragStart, dragEnd));
+  else {
+    const rect = normalizedRect(dragStart, dragEnd);
+    previewRect(rect);
+    showAreaTooltip(rect, event);
+  }
 });
 
 board.addEventListener("pointermove", (event) => {
@@ -270,7 +347,9 @@ board.addEventListener("pointermove", (event) => {
     dragPath.push(...between);
     renderDraftLines(dragPath);
   } else {
-    previewRect(normalizedRect(dragStart, coord));
+    const rect = normalizedRect(dragStart, coord);
+    previewRect(rect);
+    showAreaTooltip(rect, event);
   }
   dragEnd = coord;
 });
@@ -279,7 +358,11 @@ function completeDrag() {
   if (!dragStart || !dragEnd) return;
   const before = snapshot();
   const rect = normalizedRect(dragStart, dragEnd);
-  board.querySelectorAll(".preview").forEach((cell) => cell.classList.remove("preview"));
+  let autoCompleted = 0;
+  hideAreaTooltip();
+  board.querySelectorAll(".preview-top,.preview-right,.preview-bottom,.preview-left").forEach((cell) => {
+    cell.classList.remove("preview-top", "preview-right", "preview-bottom", "preview-left");
+  });
 
   if (mode === "draw") {
     userRects = userRects.filter((existing) => !overlaps(existing, rect));
@@ -288,6 +371,7 @@ function completeDrag() {
       const [a, b] = parseEdge(value);
       return !(inside(a, rect) && inside(b, rect));
     }));
+    autoCompleted = completeForcedRectangles();
   } else if (mode === "draft") {
     const segments = pathSegments(dragPath);
     if (segments.length) {
@@ -312,13 +396,18 @@ function completeDrag() {
   if (!sameState(before, after)) history.record(before);
   render();
   persist();
-  if (mode === "draw" && !validate().uncovered) void checkSolution(true);
+  if (mode === "draw") {
+    const result = validate();
+    if (!result.uncovered) void checkSolution(true);
+    else if (autoCompleted > 0) showMessage(`ルールから一意に決まる四角形を ${autoCompleted} 個、自動で補いました。`);
+  }
 }
 
 board.addEventListener("pointerup", completeDrag);
 board.addEventListener("pointercancel", () => {
   dragStart = dragEnd = null;
   dragPath = [];
+  hideAreaTooltip();
   render();
 });
 
@@ -346,6 +435,22 @@ function persist() {
     userRectangles: userRects,
     draftEdges: [...draftEdges],
   });
+}
+
+// 入力済みの枠を避けると候補が1つしか残らない数字を、自動で枠として確定します。
+// 保存済みの正解は参照せず、盤面に表示されている数字とルールだけで判定します。
+function completeForcedRectangles() {
+  const previousCount = userRects.length;
+  const result = completeForcedShikakuRectangles(boardNumbers, userRects);
+  if (result.error || result.added === 0) return 0;
+  userRects = result.rectangles;
+  result.rectangles.slice(previousCount).forEach((rect) => {
+    draftEdges = new Set([...draftEdges].filter((value) => {
+      const [a, b] = parseEdge(value);
+      return !(inside(a, rect) && inside(b, rect));
+    }));
+  });
+  return result.added;
 }
 
 function validate() {
@@ -387,6 +492,7 @@ async function checkSolution(automatic = false) {
   clearProgress();
   history.clear();
   showMessage(`クリア！ ${formatTime(elapsed)} で完成しました。`, "success");
+  showCompletionPanel();
   try {
     await saveClearRecord(currentUser?.uid || auth.currentUser?.uid || null, id, elapsed, {
       type: "shikaku", difficulty, size, mode: playMode,
@@ -401,14 +507,38 @@ async function checkSolution(automatic = false) {
 
 document.getElementById("check-btn").addEventListener("click", () => { void checkSolution(false); });
 
-document.getElementById("hint-btn").addEventListener("click", () => {
-  if (guardFinished()) return;
-  clearHighlights();
-  const hint = getShikakuHint(userRects, boardNumbers);
+function paintFullHint(hint) {
   if (hint.rect) eachCell(hint.rect, (x, y) => cells[y][x].classList.add(hint.tone === "error" ? "error" : "hint-area"));
   if (hint.cells) hint.cells.forEach(({ x, y }) => cells[y]?.[x]?.classList.add(hint.tone === "error" ? "error" : "hint-area"));
-  if (hint.number) cells[hint.number.y][hint.number.x].classList.add("hint-number");
-  showMessage(hint.message, hint.tone === "error" ? "error" : hint.tone === "success" ? "success" : "");
+  if (hint.number) cells[hint.number.y]?.[hint.number.x]?.classList.add(hint.tone === "error" ? "error" : "hint-number");
+}
+
+hintButton.addEventListener("click", () => {
+  if (guardFinished()) return;
+
+  if (hintStage === 1 && pendingHint) {
+    clearHighlights();
+    paintFullHint(pendingHint);
+    showMessage(`ヒント2／2「${pendingHint.logicName || "盤面の絞り込み"}」：${pendingHint.message}`);
+    hintStage = 2;
+    renderHintStage();
+    return;
+  }
+
+  clearHighlights();
+  pendingHint = getShikakuHint(userRects, boardNumbers);
+  if (["error", "success"].includes(pendingHint.tone)) {
+    paintFullHint(pendingHint);
+    showMessage(pendingHint.message, pendingHint.tone);
+    resetHintStage();
+    return;
+  }
+
+  (pendingHint.focusCells || (pendingHint.number ? [pendingHint.number] : []))
+    .forEach(({ x, y }) => cells[y]?.[x]?.classList.add("hint-focus"));
+  showMessage(`ヒント1／2：${pendingHint.focusMessage || "ハイライトした場所に注目してください。"}`);
+  hintStage = 1;
+  renderHintStage();
 });
 
 document.getElementById("clear-btn").addEventListener("click", () => {
@@ -419,10 +549,21 @@ document.getElementById("clear-btn").addEventListener("click", () => {
   userRects = [];
   draftEdges.clear();
   history.record(before);
+  resetHintStage();
   clearHighlights();
   render();
   persist();
   showMessage("入力を消しました。");
+});
+
+document.getElementById("rules-btn").addEventListener("click", () => {
+  if (typeof rulesDialog?.showModal === "function") rulesDialog.showModal();
+});
+
+retryButton?.addEventListener("click", () => {
+  location.href = isChallenge
+    ? "../index.html?auto=challenge"
+    : `../index.html?auto=shikaku&diff=${encodeURIComponent(difficulty)}&size=${encodeURIComponent(size)}`;
 });
 
 async function forfeitChallenge(destination = "../index.html") {
@@ -507,6 +648,7 @@ function convertLegacyDraftCells(values) {
 
 async function init() {
   if (!id) throw new Error("パズルIDが指定されていません。");
+  if (completionPanel) completionPanel.hidden = true;
   if (isChallenge) clearProgress();
   const saved = resuming ? loadProgress() : null;
   if (saved?.type === "shikaku" && saved.id === id) {

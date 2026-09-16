@@ -8,6 +8,11 @@
 .quick-play span { display: block; color: #b8c8c3; font-size: .78rem; font-weight: 800; }
 .quick-play strong { display: block; font-size: 1.15rem; }
 .quick-play small { display: block; margin-top: 3px; color: #8fa6a0; font-size: .68rem; font-weight: 700; }
+.daily-progress { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 9px; }
+.daily-progress > span { display: inline-flex; align-items: center; min-height: 24px; padding: 3px 8px; border: 1px solid rgba(255,255,255,.16); border-radius: 999px; color: #dce8e4; font-size: .67rem; font-weight: 850; line-height: 1; }
+.daily-state.cleared { border-color: rgba(200,241,53,.55); background: rgba(200,241,53,.13); color: var(--lime); }
+.daily-state.finished { border-color: rgba(255,255,255,.24); color: #b8c8c3; }
+.daily-streak { background: rgba(255,255,255,.06); }
 .quick-play .btn { grid-column: 1 / -1; position: relative; z-index: 1; }
 .resume { margin-bottom: 20px; padding: 14px 16px; display: flex; align-items: center; justify-content: space-between; gap: 20px; border: 1px solid #aac7c9; border-radius: var(--radius); background: #effbfa; }
 .resume[hidden] { display: none; }

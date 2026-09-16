@@ -3,11 +3,11 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="四角に切れを、下書き・ヒント・途中保存付きで遊べます。">
+  <meta name="description" content="四角に切れを、メモ・ヒント・途中保存付きで遊べます。">
   <title>四角に切れ — YourLogic</title>
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='15' fill='%23142d35'/%3E%3Cpath d='M16 15h32v34H16zM27 15v34M38 15v34M16 27h32M16 38h32' fill='none' stroke='%23c8f135' stroke-width='3'/%3E%3C/svg%3E">
-  <link rel="stylesheet" href="../css/base.css">
-  <link rel="stylesheet" href="../css/shikaku.css?v=20260917-1">
+  <link rel="stylesheet" href="../css/base.css?v=20260917-3">
+  <link rel="stylesheet" href="../css/shikaku.css?v=20260917-3">
 </head>
 <body>
   <header class="site-header">
@@ -36,26 +36,38 @@
       <section class="board-panel surface" aria-label="四角に切れ盤面">
         <div id="loading" class="loading">盤面を作っています…</div>
         <div id="board" class="shikaku-board" role="grid" aria-label="四角に切れの盤面" hidden></div>
+        <div id="area-tooltip" class="area-tooltip" role="status" aria-live="polite" hidden>1マス</div>
       </section>
 
       <aside class="tool-panel">
         <section class="tool-card surface">
-          <h2>入力方法</h2>
-          <p>枠線は範囲を選択し、下書きは通過したマスの中心を線で結びます。</p>
+          <h2>入力モード</h2>
+          <p>枠線は範囲を選択し、メモは通過したマスの中心を線で結びます。</p>
           <div class="mode-switch" role="group" aria-label="入力モード">
             <button class="mode active" data-mode="draw" type="button" aria-pressed="true"><span>▣</span>枠線</button>
-            <button class="mode" data-mode="draft" type="button" aria-pressed="false"><span>⌁</span>下書き</button>
+            <button class="mode" data-mode="draft" type="button" aria-pressed="false"><span>⌁</span>メモ</button>
             <button class="mode" data-mode="erase" type="button" aria-pressed="false"><span>×</span>消す</button>
           </div>
         </section>
 
         <div id="message" class="notice" role="status" aria-live="polite" hidden></div>
+        <section id="completion-panel" class="completion-panel surface" aria-live="polite" hidden>
+          <p class="eyebrow">PUZZLE CLEAR</p>
+          <strong id="completion-title">クリアしました！</strong>
+          <p id="completion-copy">同じ条件でもう一問遊べます。</p>
+          <button id="retry-btn" class="btn btn-accent btn-block" type="button">同じ条件でもう一問</button>
+        </section>
 
         <section class="tool-card surface">
           <h2>サポート</h2>
           <div class="action-list">
+            <button id="rules-btn" class="btn btn-secondary btn-block" type="button">ルール説明</button>
             <button id="check-btn" class="btn btn-primary btn-block" type="button">答え合わせ</button>
-            <button id="hint-btn" class="btn btn-secondary btn-block" type="button">ヒントを見る</button>
+            <div class="hint-steps" aria-label="2段階ヒント">
+              <span id="hint-step-focus" class="active">1 着目箇所</span>
+              <span id="hint-step-logic">2 ロジックと答え</span>
+            </div>
+            <button id="hint-btn" class="btn btn-secondary btn-block" type="button">ヒント1：着目箇所を見る</button>
             <button id="undo-btn" class="btn btn-secondary btn-block" type="button" disabled>一個もどる</button>
             <button id="clear-btn" class="btn btn-secondary btn-block" type="button">入力をすべて消す</button>
             <button id="answer-btn" class="text-button" type="button">解答を表示する</button>
@@ -63,11 +75,12 @@
         </section>
 
         <section class="rule-card">
-          <strong>ルール</strong>
+          <strong>操作方法</strong>
           <ul>
-            <li>各四角形に数字は1つだけ</li>
-            <li>数字と四角形の面積を一致させる</li>
-            <li>盤面をすべて埋める</li>
+            <li>始点と終点を対角にして枠線を引く</li>
+            <li>ドラッグ中はカーソル付近に面積を表示</li>
+            <li>メモではマスの中心を線で結ぶ</li>
+            <li>消すモードで枠線・メモを消す</li>
             <li>⌘Z / Ctrl+Zで一個もどる</li>
           </ul>
         </section>
@@ -75,6 +88,27 @@
     </div>
   </main>
 
-  <script type="module" src="../js/puzzles/shikaku/shikaku.js?v=20260917-1"></script>
+  <dialog id="rules-dialog" class="rules-dialog" aria-labelledby="rules-dialog-title">
+    <form method="dialog" class="rules-dialog-card">
+      <button class="dialog-close" value="close" aria-label="ルール説明を閉じる" type="submit">×</button>
+      <p class="eyebrow">HOW TO SOLVE</p>
+      <h2 id="rules-dialog-title">四角に切れのルール</h2>
+      <div class="rule-tabs" role="tablist" aria-label="ルール説明">
+        <button class="rule-tab active" type="button" role="tab" aria-selected="true">基本ルール</button>
+      </div>
+      <section class="rule-panel" role="tabpanel">
+        <div class="rule-diagram shikaku-rule-diagram" aria-hidden="true">
+          <span class="wide">6</span><span>4</span><span>2</span>
+        </div>
+        <ul>
+          <li>盤面を長方形または正方形に分けます。</li>
+          <li>各領域に入る数字は一つだけです。</li>
+          <li>領域の面積（マス数）を、その数字と一致させます。</li>
+        </ul>
+      </section>
+    </form>
+  </dialog>
+
+  <script type="module" src="../js/puzzles/shikaku/shikaku.js?v=20260917-3"></script>
 </body>
 </html>

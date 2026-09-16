@@ -263,6 +263,74 @@ export function getGuestFinishedPuzzleIds() {
   return Array.from(new Set([...safeArray(GUEST_FINISHED_KEY), ...legacy]));
 }
 
+export function getGuestClearHistory() {
+  return safeArray("guest_clear_history");
+}
+
+export function getGuestFinishHistory() {
+  return safeArray(GUEST_HISTORY_KEY);
+}
+
+function dailyDateKey(record) {
+  if (!record || (record.mode !== "daily" && !String(record.puzzleId || "").startsWith("daily-"))) return null;
+  const idMatch = String(record.puzzleId || "").match(/^daily-(\d{4})(\d{2})(\d{2})$/);
+  if (idMatch) return `${idMatch[1]}-${idMatch[2]}-${idMatch[3]}`;
+  const date = new Date(record.clearedAt || record.finishedAt || "");
+  return Number.isNaN(date.getTime()) ? null : getJstDateKey(date);
+}
+
+function shiftJstDateKey(dateKey, days) {
+  const [year, month, day] = String(dateKey).split("-").map(Number);
+  if (![year, month, day].every(Number.isFinite)) return null;
+  const date = new Date(Date.UTC(year, month - 1, day + days, 12));
+  return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}-${String(date.getUTCDate()).padStart(2, "0")}`;
+}
+
+/**
+ * 今日のおすすめの連続正解日数を、保存済み履歴から復元します。
+ * 今日が未挑戦なら昨日までの連続記録を維持し、今日終了済みで未正解なら0日にします。
+ */
+export function calculateDailyStats(clearHistory = [], finishHistory = [], today = getJstDateKey()) {
+  const clearedDates = new Set((Array.isArray(clearHistory) ? clearHistory : [])
+    .filter((record) => record?.outcome === "cleared" || (record?.outcome == null && record?.mode === "daily"))
+    .map(dailyDateKey)
+    .filter(Boolean));
+  const todayRecords = (Array.isArray(finishHistory) ? finishHistory : [])
+    .filter((record) => dailyDateKey(record) === today);
+  const clearedToday = clearedDates.has(today);
+  const completedToday = clearedToday || todayRecords.length > 0;
+
+  let currentStreak = 0;
+  let cursor = clearedToday ? today : (completedToday ? null : shiftJstDateKey(today, -1));
+  while (cursor && clearedDates.has(cursor)) {
+    currentStreak++;
+    cursor = shiftJstDateKey(cursor, -1);
+  }
+
+  const sortedDates = [...clearedDates].sort();
+  let bestStreak = 0;
+  let run = 0;
+  let previous = null;
+  sortedDates.forEach((dateKey) => {
+    run = previous && shiftJstDateKey(previous, 1) === dateKey ? run + 1 : 1;
+    bestStreak = Math.max(bestStreak, run);
+    previous = dateKey;
+  });
+
+  const latestToday = todayRecords.at(-1) || null;
+  return {
+    currentStreak,
+    bestStreak,
+    completedToday,
+    clearedToday,
+    outcome: clearedToday ? "cleared" : latestToday?.outcome || null,
+  };
+}
+
+export function getGuestDailyStats(today = getJstDateKey()) {
+  return calculateDailyStats(getGuestClearHistory(), getGuestFinishHistory(), today);
+}
+
 function saveGuestFinish(record) {
   const ids = getGuestFinishedPuzzleIds();
   if (!ids.includes(record.puzzleId)) ids.push(record.puzzleId);

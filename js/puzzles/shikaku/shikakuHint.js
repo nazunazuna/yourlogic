@@ -218,6 +218,7 @@ function logicalHint(userRects, board) {
       const rect = candidates[0];
       return {
         tone: "hint",
+        logicName: "候補が1つ",
         rect,
         number: clue,
         message: `${clue.y + 1}行${clue.x + 1}列の「${clue.value}」は、他の数字や確定済みの枠を避けると黄色の長方形にしかできません。`,
@@ -232,6 +233,7 @@ function logicalHint(userRects, board) {
     if (common.length) {
       return {
         tone: "hint",
+        logicName: "全候補の共通マス",
         cells: common.map((cell) => cellPoint(cell, size)),
         number: clue,
         message: `${clue.y + 1}行${clue.x + 1}列の「${clue.value}」から作れる全候補に共通するマスです。黄色のマスはこの数字の領域だと確定します。`,
@@ -262,6 +264,7 @@ function logicalHint(userRects, board) {
     const clue = clues[clueIndex];
     return {
       tone: "hint",
+      logicName: "その数字だけが届くマス",
       cells: forcedCells.map((cell) => cellPoint(cell, size)),
       number: clue,
       message: `黄色のマスを覆える候補は、${clue.y + 1}行${clue.x + 1}列の「${clue.value}」から作る長方形だけです。この数字の領域に入ると確定します。`,
@@ -290,6 +293,7 @@ function logicalHint(userRects, board) {
     if (!unknown && feasible.length === 1) {
       return {
         tone: "hint",
+        logicName: "候補の仮定と矛盾",
         rect: feasible[0],
         number: clue,
         message: `${clue.y + 1}行${clue.x + 1}列の「${clue.value}」の候補を盤面全体で検証すると、黄色の長方形だけが矛盾なく全マスを分割できます。`,
@@ -300,6 +304,7 @@ function logicalHint(userRects, board) {
       if (common.length) {
         return {
           tone: "hint",
+          logicName: "盤面全体での候補絞り込み",
           cells: common.map((cell) => cellPoint(cell, size)),
           number: clue,
           message: `${clue.y + 1}行${clue.x + 1}列の「${clue.value}」の候補を盤面全体で絞ると、黄色のマスはどの候補にも共通します。`,
@@ -311,6 +316,7 @@ function logicalHint(userRects, board) {
   const focus = unresolved[0];
   return {
     tone: "info",
+    logicName: "候補数の比較",
     number: focus,
     message: focus
       ? `${focus.y + 1}行${focus.x + 1}列の「${focus.value}」は候補が ${candidatesByClue[focus.id].length} 通りあります。現時点では短時間で確定できるマスが見つからないため、周囲の数字から枠を増やしてみましょう。`
@@ -318,12 +324,63 @@ function logicalHint(userRects, board) {
   };
 }
 
+function toTwoStageHint(hint) {
+  if (!hint || ["error", "success"].includes(hint.tone)) return hint;
+  const focusCells = hint.number
+    ? [{ x: hint.number.x, y: hint.number.y }]
+    : (hint.cells || []).slice(0, 1);
+  const focusMessage = hint.number
+    ? `${hint.number.y + 1}行${hint.number.x + 1}列の「${hint.number.value}」と、その周囲の未確定マスに注目してください。`
+    : "ハイライトした未確定マスと、そこまで届く数字に注目してください。";
+  return { ...hint, focusCells, focusMessage };
+}
+
 /** 第3引数は旧API互換のため受け取りますが、解答データは一切参照しません。 */
 export function getShikakuHint(userRects, board, _unusedSolution = null) {
   if (!Array.isArray(board) || !board.length || board.some((row) => !Array.isArray(row) || row.length !== board.length)) {
     return { tone: "error", message: "盤面データを読み取れませんでした。" };
   }
-  return logicalHint(userRects || [], board);
+  return toTwoStageHint(logicalHint(userRects || [], board));
 }
 
-export { enumerateCandidates as enumerateShikakuCandidates };
+export function enumerateShikakuCandidates(board, clues = collectClues(board)) {
+  return enumerateCandidates(board, clues);
+}
+
+/**
+ * すでに確定した枠を避けた結果、候補が1つだけになった数字を順に確定します。
+ * 保存済みの解答は受け取らず、盤面の数字と現在の枠だけを使います。
+ */
+export function completeForcedShikakuRectangles(board, initialRects = []) {
+  if (!Array.isArray(board) || !board.length || board.some((row) => !Array.isArray(row) || row.length !== board.length)) {
+    return { rectangles: initialRects.map((rect) => ({ ...rect })), added: 0, error: "盤面データを読み取れませんでした。" };
+  }
+
+  const clues = collectClues(board);
+  const rectangles = initialRects.map((rect) => ({ ...rect }));
+  const validationError = validateUserRects(rectangles, board, clues);
+  if (validationError) {
+    return { rectangles, added: 0, error: validationError.message };
+  }
+
+  const candidatesByClue = enumerateCandidates(board, clues);
+  let added = 0;
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const clue of clues) {
+      if (rectangles.some((rect) => cluesInRect(rect, clues).some((insideClue) => insideClue.id === clue.id))) continue;
+      const viable = candidatesByClue[clue.id].filter((candidate) => (
+        rectangles.every((fixed) => !overlaps(candidate, fixed))
+      ));
+      if (viable.length !== 1) continue;
+      const { x1, y1, x2, y2 } = viable[0];
+      rectangles.push({ x1, y1, x2, y2 });
+      added++;
+      changed = true;
+      break;
+    }
+  }
+
+  return { rectangles, added, error: null };
+}

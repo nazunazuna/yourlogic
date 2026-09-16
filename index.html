@@ -6,8 +6,8 @@
   <meta name="description" content="数独と四角に切れを、ヒント・途中保存付きで遊べるロジックパズルサイト。">
   <title>YourLogic — ロジックパズルを遊ぶ</title>
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='15' fill='%23142d35'/%3E%3Cpath d='M16 15h32v34H16zM27 15v34M38 15v34M16 27h32M16 38h32' fill='none' stroke='%23c8f135' stroke-width='3'/%3E%3C/svg%3E">
-  <link rel="stylesheet" href="./css/base.css">
-  <link rel="stylesheet" href="./css/index.css?v=20260917-1">
+  <link rel="stylesheet" href="./css/base.css?v=20260917-3">
+  <link rel="stylesheet" href="./css/index.css?v=20260917-3">
 </head>
 <body>
   <header class="site-header">
@@ -44,6 +44,10 @@
           <span>今日のおすすめ</span>
           <strong id="daily-title">本日の問題を準備中…</strong>
           <small id="daily-date">日本時間で毎日更新</small>
+          <div class="daily-progress" aria-live="polite">
+            <span id="daily-state" class="daily-state">未挑戦</span>
+            <span id="daily-streak" class="daily-streak">連続クリア 0日</span>
+          </div>
         </div>
         <button id="daily-btn" class="btn btn-accent" type="button" disabled>すぐ解く</button>
       </div>
@@ -116,7 +120,7 @@
           <div class="card-content">
             <div class="card-title-row">
               <div><p>AREA DIVISION</p><h3>四角に切れ</h3></div>
-              <span class="feature-badge">下書き・ヒント</span>
+              <span class="feature-badge">メモ・ヒント</span>
             </div>
             <p class="card-description">数字を1つずつ含み、面積が数字と一致する長方形に盤面を分けます。</p>
             <div class="shikaku-options">
@@ -168,6 +172,6 @@
   </dialog>
 
   <footer class="site-footer">© 2026 YourLogic</footer>
-  <script type="module" src="./js/index.js?v=20260917-1"></script>
+  <script type="module" src="./js/index.js?v=20260917-3"></script>
 </body>
 </html>

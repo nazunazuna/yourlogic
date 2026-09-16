@@ -2,13 +2,14 @@ import { onAuthStateChanged, signInWithPopup, signOut } from "https://www.gstati
 import { doc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 import {
   auth, db, provider, cacheDailyPuzzle, calculateGenerationPoints, checkUserExists,
-  createGeneratedPuzzle, fetchOrInitUser, fetchPuzzles, getCachedDailyPuzzle,
+  calculateDailyStats, createGeneratedPuzzle, fetchOrInitUser, fetchPuzzles, getCachedDailyPuzzle,
+  getGuestDailyStats,
   getGuestFinishedPuzzleIds, getJstDateKey, markPuzzleFinished, syncGenerationPoints,
   MAX_GENERATION_POINTS,
-} from "./services/firebaseService.js?v=20260917-1";
-import { generatePuzzle } from "./puzzles/sudoku/sudokuGenerator.js?v=20260917-1";
-import { generateShikakuPuzzle } from "./puzzles/shikaku/shikakuGenerator.js?v=20260917-1";
-import { clearProgress, loadProgress, progressLabel, progressUrl } from "./core/progressStore.js?v=20260917-1";
+} from "./services/firebaseService.js?v=20260917-3";
+import { generatePuzzle } from "./puzzles/sudoku/sudokuGenerator.js?v=20260917-3";
+import { generateShikakuPuzzle } from "./puzzles/shikaku/shikakuGenerator.js?v=20260917-3";
+import { clearProgress, loadProgress, progressLabel, progressUrl } from "./core/progressStore.js?v=20260917-3";
 
 const DIFFICULTIES = ["easy", "standard", "hard", "insane"];
 const DIFFICULTY_NAMES = { easy: "初級", standard: "中級", hard: "上級", insane: "超上級" };
@@ -21,8 +22,8 @@ const SHIKAKU_SIZES = {
   hard: [20, 25, 30, 40],
   insane: [30, 40, 50],
 };
-const SHIKAKU_GENERATOR_VERSION = "natural-v2";
-const DAILY_ALGORITHM_VERSION = "daily-v1";
+const SHIKAKU_GENERATOR_VERSION = "logic-v4";
+const DAILY_ALGORITHM_VERSION = "daily-v2";
 
 const state = {
   user: null,
@@ -34,6 +35,7 @@ const state = {
   syncingPoints: false,
   dailyPuzzle: null,
   dailyReady: false,
+  dailyFinished: false,
 };
 let staminaInterval = null;
 let dailyRefreshInterval = null;
@@ -62,7 +64,7 @@ function setBusy(busy) {
   [sudokuBtn, shikakuBtn, challengeBtn].forEach((button) => {
     if (button) button.disabled = busy || !state.authReady;
   });
-  if (dailyBtn) dailyBtn.disabled = busy || !state.dailyReady;
+  if (dailyBtn) dailyBtn.disabled = busy || !state.dailyReady || state.dailyFinished;
 }
 
 function renderProgress() {
@@ -229,12 +231,44 @@ function renderDailyPuzzle(puzzle) {
   $("#daily-date").textContent = `${puzzle.dateKey.replaceAll("-", "/")}・生成ポイント不要`;
 }
 
+function dailyStats() {
+  if (!state.user) return getGuestDailyStats();
+  return calculateDailyStats(state.userData?.clearHistory || [], state.userData?.finishHistory || []);
+}
+
+function renderDailyProgress() {
+  const badge = $("#daily-state");
+  const streak = $("#daily-streak");
+  if (!badge || !streak) return;
+  const stats = dailyStats();
+  const clearedIds = new Set(state.user ? (state.userData?.clearedPuzzles || []) : []);
+  const finishedIds = new Set(state.user
+    ? [...(state.userData?.finishedPuzzles || []), ...(state.userData?.clearedPuzzles || [])]
+    : getGuestFinishedPuzzleIds());
+  const dailyId = state.dailyPuzzle?.id;
+  const cleared = Boolean(dailyId && (clearedIds.has(dailyId) || stats.clearedToday));
+  const completed = Boolean(dailyId && (finishedIds.has(dailyId) || stats.completedToday));
+
+  state.dailyFinished = completed;
+  badge.className = `daily-state${cleared ? " cleared" : completed ? " finished" : ""}`;
+  badge.textContent = cleared ? "本日クリア済み" : completed ? "本日は終了済み" : "未挑戦";
+  streak.textContent = stats.currentStreak > 0
+    ? `🔥 ${stats.currentStreak}日連続クリア`
+    : "連続クリア 0日";
+  streak.title = `最長 ${stats.bestStreak}日連続`;
+  dailyBtn.textContent = cleared ? "クリア済み" : completed ? "終了済み" : "すぐ解く";
+  setBusy(state.busy);
+}
+
 async function ensureDailyPuzzle() {
   const cached = getCachedDailyPuzzle();
-  if (cached) {
+  const cacheIsCurrent = cached?.parameters?.algorithmVersion === DAILY_ALGORITHM_VERSION
+    && (cached.type !== "shikaku" || cached.parameters?.generatorVersion === SHIKAKU_GENERATOR_VERSION);
+  if (cached && cacheIsCurrent) {
     state.dailyPuzzle = cached;
     state.dailyReady = true;
     renderDailyPuzzle(cached);
+    renderDailyProgress();
     setBusy(state.busy);
     return cached;
   }
@@ -276,6 +310,7 @@ async function ensureDailyPuzzle() {
     state.dailyPuzzle = puzzle;
     state.dailyReady = true;
     renderDailyPuzzle(puzzle);
+    renderDailyProgress();
     setBusy(state.busy);
     return puzzle;
   } catch (error) {
@@ -455,6 +490,7 @@ onAuthStateChanged(auth, async (user) => {
     userActions.hidden = true;
     clearInterval(staminaInterval);
     renderStamina();
+    renderDailyProgress();
     return;
   }
 
@@ -472,6 +508,7 @@ onAuthStateChanged(auth, async (user) => {
       state.userData = snapshot.data();
       userName.textContent = state.userData.displayName || user.displayName || "プレイヤー";
       beginStaminaClock();
+      renderDailyProgress();
     }, (error) => {
       console.error(error);
       showStatus(`アカウント情報を同期できませんでした。（${error.code || "unknown"}）`, "error");
@@ -572,11 +609,20 @@ function registerWebMcp() {
 
 registerWebMcp();
 const autoParams = new URLSearchParams(location.search);
-if (autoParams.get("auto") === "sudoku") {
-  const difficulty = autoParams.get("diff") || "easy";
+const autoMode = autoParams.get("auto");
+if (["sudoku", "shikaku", "challenge"].includes(autoMode)) {
+  const difficulty = DIFFICULTIES.includes(autoParams.get("diff")) ? autoParams.get("diff") : "easy";
   const waitForAuth = setInterval(() => {
     if (!state.authReady) return;
     clearInterval(waitForAuth);
-    startPuzzle({ type: "sudoku", difficulty, size: 9 });
+    if (autoMode === "challenge") {
+      void startChallenge();
+      return;
+    }
+    const requestedSize = Number(autoParams.get("size"));
+    const size = autoMode === "shikaku" && SHIKAKU_SIZES[difficulty].includes(requestedSize)
+      ? requestedSize
+      : autoMode === "shikaku" ? SHIKAKU_SIZES[difficulty][0] : 9;
+    void startPuzzle({ type: autoMode, difficulty, size });
   }, 50);
 }
