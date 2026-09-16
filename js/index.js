@@ -7,7 +7,7 @@ import {
   MAX_GENERATION_POINTS,
 } from "./services/firebaseService.js?v=20260916-2";
 import { generatePuzzle } from "./puzzles/sudoku/sudokuGenerator.js";
-import { generateShikakuPuzzle } from "./puzzles/shikaku/shikakuGenerator.js";
+import { generateShikakuPuzzle } from "./puzzles/shikaku/shikakuGenerator.js?v=20260916-3";
 import { clearProgress, loadProgress, progressLabel, progressUrl } from "./core/progressStore.js";
 
 const SHIKAKU_SIZES = {
