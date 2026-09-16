@@ -15,6 +15,7 @@ let currentSolution = "";
 let currentProblem = "";
 let currentPuzzleId = null;
 let gameFinished = false;
+let completionState = null;
 let mistakeIndexes = new Set();
 let mistakeMessage = "❌ この数字は間違えています。消してやり直してみましょう。";
 
@@ -39,6 +40,12 @@ const urlParams = new URLSearchParams(window.location.search);
 let currentDifficulty = urlParams.get('diff') || 'easy'; 
 const targetPuzzleId = urlParams.get('id');
 const isResume = urlParams.get('resume') === 'true'; 
+
+function guardFinished() {
+    if (!gameFinished) return false;
+    alert(completionState === 'cleared' ? "パズルはクリア済みです！" : "このパズルは終了済みです。");
+    return true;
+}
 
 // 💡 ログイン状態の監視と初期化・復元ロジック
 onAuthStateChanged(auth, async (user) => {
@@ -241,6 +248,7 @@ for (let i = 0; i < 81; i++) {
     cell.appendChild(memoGrid);
 
     cell.addEventListener('click', () => {
+        if (guardFinished()) return;
         if (currentInputMode === 'auto') {
             if (cell.classList.contains('initial')) {
                 updateHighlight(i);
@@ -311,7 +319,7 @@ const history = createUndoHistory({
 });
 
 function undo() {
-    if (gameFinished) return;
+    if (guardFinished()) return;
     if (history.undo()) {
         updateNumberPadStatus();
         checkAutoVerify();
@@ -351,25 +359,23 @@ function updateHighlight(selectedIndex) {
         hintTextArea.innerText = '';
     }
 
-    if (selectedIndex === null || selectedIndex === undefined) {
-        selectedCell = null;
-        return;
-    }
+    const hasSelection = selectedIndex !== null && selectedIndex !== undefined;
+    selectedCell = hasSelection ? cells[selectedIndex] : null;
+    if (selectedCell) selectedCell.classList.add('highlight-selected');
 
-    selectedCell = cells[selectedIndex];
-    selectedCell.classList.add('highlight-selected');
-
-    const r = Math.floor(selectedIndex / 9);
-    const c = selectedIndex % 9;
-    const b = Math.floor(r / 3) * 3 + Math.floor(c / 3);
-    const targetNum = selectedCell.querySelector('.cell-val').innerText.trim();
+    const r = hasSelection ? Math.floor(selectedIndex / 9) : -1;
+    const c = hasSelection ? selectedIndex % 9 : -1;
+    const b = hasSelection ? Math.floor(r / 3) * 3 + Math.floor(c / 3) : -1;
+    const targetNum = currentInputMode === 'auto' && selectedNumber !== null && selectedNumber !== ''
+        ? String(selectedNumber)
+        : selectedCell?.querySelector('.cell-val').innerText.trim() || '';
 
     cells.forEach((cell, i) => {
         const cellRow = Math.floor(i / 9);
         const cellCol = i % 9;
         const cellBlock = Math.floor(cellRow / 3) * 3 + Math.floor(cellCol / 3);
 
-        if (i !== selectedIndex && (cellRow === r || cellCol === c || cellBlock === b)) {
+        if (hasSelection && i !== selectedIndex && (cellRow === r || cellCol === c || cellBlock === b)) {
             cell.classList.add('highlight-area');
         }
 
@@ -384,6 +390,7 @@ function updateHighlight(selectedIndex) {
 
 // 💡 入力・削除コアロジック
 function handleInput(num) {
+    if (guardFinished()) return;
     if (!selectedCell) return;
     if (selectedCell.classList.contains('initial')) return;
 
@@ -447,7 +454,7 @@ function handleInput(num) {
 function checkAutoVerify() {
     const currentBoardStr = cells.map(cell => cell.querySelector('.cell-val').innerText.trim() || '0').join('');
     if (!currentBoardStr.includes('0')) {
-        setTimeout(() => { executeCheck(true); }, 50);
+        setTimeout(() => { if (!gameFinished) executeCheck(true); }, 50);
     }
 }
 
@@ -474,23 +481,28 @@ function updateNumberPadStatus() {
 // 設置モード切り替えイベント
 if (modeLocationBtn && modeAutoBtn) {
     modeLocationBtn.addEventListener('click', () => {
+        if (guardFinished()) return;
         currentInputMode = 'location';
         modeLocationBtn.classList.add('active');
         modeAutoBtn.classList.remove('active');
         selectedNumber = null;
         document.querySelectorAll('.num-pad .num-btn').forEach(b => b.classList.remove('selected-num'));
+        updateHighlight(selectedCell ? Number(selectedCell.dataset.index) : null);
     });
 
     modeAutoBtn.addEventListener('click', () => {
+        if (guardFinished()) return;
         currentInputMode = 'auto';
         modeAutoBtn.classList.add('active');
         modeLocationBtn.classList.remove('active');
+        updateHighlight(selectedCell ? Number(selectedCell.dataset.index) : null);
     });
 }
 
 // ナンバーパッドのクリックイベント
 document.querySelectorAll('.num-pad .num-btn').forEach(btn => {
     btn.addEventListener('click', () => {
+        if (guardFinished()) return;
         const num = btn.dataset.num;
         if (currentInputMode === 'auto') {
             document.querySelectorAll('.num-pad .num-btn').forEach(b => b.classList.remove('selected-num'));
@@ -500,6 +512,7 @@ document.querySelectorAll('.num-pad .num-btn').forEach(btn => {
                 selectedNumber = num;
                 btn.classList.add('selected-num');
             }
+            updateHighlight(selectedCell ? Number(selectedCell.dataset.index) : null);
         } else {
             handleInput(num);
         }
@@ -508,6 +521,11 @@ document.querySelectorAll('.num-pad .num-btn').forEach(btn => {
 
 // キーボード入力イベント
 document.addEventListener('keydown', (e) => {
+    if (gameFinished && (e.key === ' ' || e.key.toLowerCase() === 'm' || (e.key >= '0' && e.key <= '9') || e.key === 'Backspace' || e.key === 'Delete' || ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key))) {
+        e.preventDefault();
+        guardFinished();
+        return;
+    }
     if (e.key === ' ' || e.key.toLowerCase() === 'm') {
         e.preventDefault();
         if (memoBtn) memoBtn.click();
@@ -522,6 +540,7 @@ document.addEventListener('keydown', (e) => {
             document.querySelectorAll('.num-pad .num-btn').forEach(b => b.classList.remove('selected-num'));
             const targetBtn = document.querySelector(`.num-pad .num-btn[data-num="${e.key}"]`);
             if (targetBtn) targetBtn.classList.add('selected-num');
+            updateHighlight(Number(selectedCell.dataset.index));
         } else {
             handleInput(e.key);
         }
@@ -531,6 +550,7 @@ document.addEventListener('keydown', (e) => {
             document.querySelectorAll('.num-pad .num-btn').forEach(b => b.classList.remove('selected-num'));
             const targetBtn = document.querySelector('.num-pad .clear-btn');
             if (targetBtn) targetBtn.classList.add('selected-num');
+            updateHighlight(Number(selectedCell.dataset.index));
         } else {
             handleInput('');
         }
@@ -551,6 +571,7 @@ document.addEventListener('keydown', (e) => {
 // 仮置きモード切替ボタン
 if (memoBtn) {
     memoBtn.addEventListener('click', () => {
+        if (guardFinished()) return;
         isMemoMode = !isMemoMode;
         if (isMemoMode) {
             memoBtn.classList.add('active');
@@ -565,6 +586,7 @@ if (memoBtn) {
 // 盤面描画の補助関数
 function displayPuzzle(boardStr, solutionStr) {
     gameFinished = false;
+    completionState = null;
     dismissMistakes();
     history.clear();
     updateHighlight(null);
@@ -590,6 +612,7 @@ function displayPuzzle(boardStr, solutionStr) {
 
 // 💡 答え合わせ・クリア処理
 async function executeCheck(isAuto = false) {
+    if (guardFinished()) return;
     const currentBoardStr = cells.map(cell => cell.querySelector('.cell-val').innerText.trim() || '0').join('');
     
     if (!isAuto && currentBoardStr.includes('0')) {
@@ -599,6 +622,7 @@ async function executeCheck(isAuto = false) {
 
     if (currentBoardStr === currentSolution) {
         gameFinished = true;
+        completionState = 'cleared';
         // タイマー停止
         clearInterval(gameTimerId); 
         
@@ -609,6 +633,8 @@ async function executeCheck(isAuto = false) {
         const minutes = Math.floor(elapsedTime / 60);
         const seconds = elapsedTime % 60;
         alert(`🎉 おめでとうございます！正解です！！\n⏱️ クリアタイム: ${minutes}分${seconds}秒`);
+        hintTextArea.innerText = `🎉 クリア！ ${minutes}分${seconds}秒で完成しました。`;
+        hintTextArea.style.display = 'block';
         
         if (currentPuzzleId) {
             try {
@@ -621,9 +647,6 @@ async function executeCheck(isAuto = false) {
             }
         }
 
-        // 💡 ②【追加】アラートと保存処理完了後、自動でホームへ戻るリダイレクトを追加
-        window.location.href = "../index.html";
-
     } else {
         alert("❌ 残念！どこかが間違っています。もう一度見端を見直してみましょう。");
     }
@@ -632,12 +655,14 @@ async function executeCheck(isAuto = false) {
 // イベントの紐付け
 document.getElementById('check-btn').addEventListener('click', () => executeCheck(false));
 document.getElementById('hint-btn').addEventListener('click', () => {
+    if (guardFinished()) return;
     const result = executeHintLogic(currentSolution, cells, hintTextArea);
     if (result?.kind === 'mistake') showMistakes(result.indexes, result.message);
     else dismissMistakes();
 });
 
 document.getElementById('giveup-btn').addEventListener('click', async () => {
+    if (guardFinished()) return;
     if (!currentSolution) {
         alert("解答データが読み込まれていません。");
         return;
@@ -645,6 +670,7 @@ document.getElementById('giveup-btn').addEventListener('click', async () => {
 
     if (confirm("本当に諦めますか？すべてのマスに模範解答が配置されます。")) {
         gameFinished = true;
+        completionState = 'answer-revealed';
         clearInterval(gameTimerId); 
         clearProgress();
         history.clear();

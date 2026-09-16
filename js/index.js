@@ -7,7 +7,7 @@ import {
   MAX_GENERATION_POINTS,
 } from "./services/firebaseService.js?v=20260916-2";
 import { generatePuzzle } from "./puzzles/sudoku/sudokuGenerator.js";
-import { generateShikakuPuzzle } from "./puzzles/shikaku/shikakuGenerator.js";
+import { generateShikakuPuzzle } from "./puzzles/shikaku/shikakuGenerator.js?v=20260916-3";
 import { clearProgress, loadProgress, progressLabel, progressUrl } from "./core/progressStore.js";
 
 const SHIKAKU_SIZES = {
@@ -16,6 +16,7 @@ const SHIKAKU_SIZES = {
   hard: [20, 25, 30, 40],
   insane: [30, 40, 50],
 };
+const SHIKAKU_GENERATOR_VERSION = "natural-v2";
 const state = {
   user: null,
   userData: null,
@@ -205,7 +206,12 @@ async function startPuzzle({ type, difficulty, size = null, daily = false }) {
   showStatus("Firestoreから問題を探しています…");
 
   try {
-    const available = await fetchPuzzles({ type, difficulty, size });
+    const fetched = await fetchPuzzles({ type, difficulty, size });
+    // 旧生成器の「数字1の区切り線」問題や、唯一解保証が弱かった問題は新規抽選から外します。
+    // IDを指定した途中保存の再開には影響しません。
+    const available = type === "shikaku"
+      ? fetched.filter((item) => item.parameters?.generatorVersion === SHIKAKU_GENERATOR_VERSION)
+      : fetched;
     const finished = await finishedIds();
     const unplayed = available.filter((item) => !finished.has(item.id));
     let target = daily ? stableDailyPick(unplayed) : randomPick(unplayed);
@@ -231,7 +237,13 @@ async function startPuzzle({ type, difficulty, size = null, daily = false }) {
         difficulty,
         size: type === "sudoku" ? 9 : size,
         puzzleData,
-        parameters: type === "shikaku" ? { uniqueSolutionVerified: true } : { uniqueSolutionVerified: true },
+        parameters: type === "shikaku"
+          ? {
+              uniqueSolutionVerified: true,
+              generatorVersion: SHIKAKU_GENERATOR_VERSION,
+              generatedWithoutUnitCells: true,
+            }
+          : { uniqueSolutionVerified: true },
       });
       target = { id };
     }
