@@ -1,8 +1,8 @@
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-import { auth, fetchPuzzleById, markPuzzleFinished, saveClearRecord } from "../../services/firebaseService.js?v=20260916-2";
-import { clearProgress, loadProgress, saveProgress } from "../../core/progressStore.js";
-import { bindUndoShortcut, createUndoHistory } from "../../core/historyStore.js";
-import { getShikakuHint } from "./shikakuHint.js";
+import { auth, fetchPuzzleById, markPuzzleFinished, saveClearRecord } from "../../services/firebaseService.js?v=20260917-1";
+import { clearProgress, loadProgress, saveProgress } from "../../core/progressStore.js?v=20260917-1";
+import { bindUndoShortcut, createUndoHistory } from "../../core/historyStore.js?v=20260917-1";
+import { getShikakuHint } from "./shikakuHint.js?v=20260917-1";
 
 const params = new URLSearchParams(location.search);
 const allowedSizes = [5, 10, 15, 20, 25, 30, 40, 50];
@@ -10,7 +10,13 @@ const requestedSize = Number(params.get("size")) || 10;
 let size = allowedSizes.includes(requestedSize) ? requestedSize : 10;
 let difficulty = ["easy", "standard", "hard", "insane"].includes(params.get("diff")) ? params.get("diff") : "standard";
 const id = params.get("id");
-const resuming = params.get("resume") === "true";
+const requestedPlayMode = params.get("mode");
+const playMode = ["daily", "challenge"].includes(requestedPlayMode) ? requestedPlayMode : "normal";
+const isChallenge = playMode === "challenge";
+const challengeSessionKey = id ? `yourlogic:challenge-session:${id}` : null;
+const challengeReentry = Boolean(isChallenge && challengeSessionKey && sessionStorage.getItem(challengeSessionKey) === "active");
+if (isChallenge && challengeSessionKey && !challengeReentry) sessionStorage.setItem(challengeSessionKey, "active");
+const resuming = !isChallenge && params.get("resume") === "true";
 const difficultyNames = { easy: "初級", standard: "中級", hard: "上級", insane: "超上級" };
 
 const board = document.getElementById("board");
@@ -36,7 +42,31 @@ let completionState = null;
 let checkingSolution = false;
 let currentUser = null;
 
-onAuthStateChanged(auth, (user) => { currentUser = user; });
+onAuthStateChanged(auth, async (user) => {
+  currentUser = user;
+  if (isChallenge && !user && !finished) {
+    finished = true;
+    completionState = "login-required";
+    if (challengeSessionKey) sessionStorage.removeItem(challengeSessionKey);
+    showMessage("チャレンジゲームを続けるにはログインが必要です。ホームに戻ります。", "error");
+    setTimeout(() => { location.href = "../index.html"; }, 1200);
+    return;
+  }
+  if (isChallenge && user && challengeReentry) {
+    finished = true;
+    completionState = "abandoned";
+    showMessage("再読み込みされたチャレンジを途中棄権として記録しています…", "error");
+    try {
+      await markPuzzleFinished(user.uid, id, "abandoned", {
+        type: "shikaku", difficulty, size, elapsedTime: 0, mode: playMode,
+      });
+    } catch (error) {
+      console.error("再読み込み時の途中棄権記録に失敗しました", error);
+    }
+    sessionStorage.removeItem(challengeSessionKey);
+    location.href = "../index.html";
+  }
+});
 
 function pointKey(point) { return `${point.x},${point.y}`; }
 function parsePoint(value) {
@@ -303,9 +333,10 @@ document.querySelectorAll(".mode").forEach((button) => button.addEventListener("
 }));
 
 function persist() {
-  if (finished || !id || !boardNumbers.length) return;
+  if (isChallenge || finished || !id || !boardNumbers.length) return;
   saveProgress({
     type: "shikaku",
+    mode: playMode,
     id,
     size,
     difficulty,
@@ -351,12 +382,15 @@ async function checkSolution(automatic = false) {
   }
   finished = true;
   completionState = "cleared";
+  if (challengeSessionKey) sessionStorage.removeItem(challengeSessionKey);
   clearInterval(timerId);
   clearProgress();
   history.clear();
   showMessage(`クリア！ ${formatTime(elapsed)} で完成しました。`, "success");
   try {
-    await saveClearRecord(currentUser?.uid || auth.currentUser?.uid || null, id, elapsed, { type: "shikaku", difficulty, size });
+    await saveClearRecord(currentUser?.uid || auth.currentUser?.uid || null, id, elapsed, {
+      type: "shikaku", difficulty, size, mode: playMode,
+    });
   } catch (error) {
     console.error("記録の保存に失敗しました", error);
     showMessage(`クリアしましたが、記録を保存できませんでした。（${error.code || "unknown"}）`, "error");
@@ -370,8 +404,9 @@ document.getElementById("check-btn").addEventListener("click", () => { void chec
 document.getElementById("hint-btn").addEventListener("click", () => {
   if (guardFinished()) return;
   clearHighlights();
-  const hint = getShikakuHint(userRects, boardNumbers, solutionRects);
+  const hint = getShikakuHint(userRects, boardNumbers);
   if (hint.rect) eachCell(hint.rect, (x, y) => cells[y][x].classList.add(hint.tone === "error" ? "error" : "hint-area"));
+  if (hint.cells) hint.cells.forEach(({ x, y }) => cells[y]?.[x]?.classList.add(hint.tone === "error" ? "error" : "hint-area"));
   if (hint.number) cells[hint.number.y][hint.number.x].classList.add("hint-number");
   showMessage(hint.message, hint.tone === "error" ? "error" : hint.tone === "success" ? "success" : "");
 });
@@ -390,8 +425,35 @@ document.getElementById("clear-btn").addEventListener("click", () => {
   showMessage("入力を消しました。");
 });
 
+async function forfeitChallenge(destination = "../index.html") {
+  if (finished) {
+    location.href = destination;
+    return;
+  }
+  if (!confirm("チャレンジを途中棄権しますか？\nこのプレイは終了済みとして記録され、続きから再開できません。")) return;
+  finished = true;
+  completionState = "abandoned";
+  if (challengeSessionKey) sessionStorage.removeItem(challengeSessionKey);
+  clearInterval(timerId);
+  clearProgress();
+  history.clear();
+  showMessage("チャレンジを途中棄権として記録しています…");
+  try {
+    await markPuzzleFinished(currentUser?.uid || auth.currentUser?.uid || null, id, "abandoned", {
+      type: "shikaku", difficulty, size, elapsedTime: elapsed, mode: playMode,
+    });
+  } catch (error) {
+    console.error("途中棄権の記録に失敗しました", error);
+  }
+  location.href = destination;
+}
+
 document.getElementById("answer-btn").addEventListener("click", async () => {
   if (guardFinished()) return;
+  if (isChallenge) {
+    await forfeitChallenge();
+    return;
+  }
   if (!confirm("解答を表示すると、この問題は終了済みになります。表示しますか？")) return;
   finished = true;
   completionState = "answer-revealed";
@@ -405,7 +467,7 @@ document.getElementById("answer-btn").addEventListener("click", async () => {
   showMessage("解答を表示しました。この問題は終了済みとして記録されました。");
   try {
     await markPuzzleFinished(currentUser?.uid || auth.currentUser?.uid || null, id, "answer-revealed", {
-      type: "shikaku", difficulty, size, elapsedTime: elapsed,
+      type: "shikaku", difficulty, size, elapsedTime: elapsed, mode: playMode,
     });
   } catch (error) {
     console.error("終了記録の保存に失敗しました", error);
@@ -445,6 +507,7 @@ function convertLegacyDraftCells(values) {
 
 async function init() {
   if (!id) throw new Error("パズルIDが指定されていません。");
+  if (isChallenge) clearProgress();
   const saved = resuming ? loadProgress() : null;
   if (saved?.type === "shikaku" && saved.id === id) {
     size = Number(saved.size) || size;
@@ -466,10 +529,33 @@ async function init() {
   }
   document.getElementById("size-label").textContent = `${size} × ${size}`;
   document.getElementById("difficulty-label").textContent = difficultyNames[difficulty];
+  const modeLabel = document.getElementById("play-mode-label");
+  if (playMode === "daily") {
+    modeLabel.hidden = false;
+    modeLabel.textContent = "今日のおすすめ";
+  } else if (isChallenge) {
+    modeLabel.hidden = false;
+    modeLabel.textContent = "チャレンジ・途中保存なし";
+    document.getElementById("answer-btn").textContent = "途中棄権する";
+  }
   createBoard();
   history.clear();
   persist();
 }
+
+document.querySelectorAll("a[href]").forEach((link) => {
+  link.addEventListener("click", (event) => {
+    if (!isChallenge || finished) return;
+    event.preventDefault();
+    void forfeitChallenge(link.href);
+  });
+});
+
+window.addEventListener("beforeunload", (event) => {
+  if (!isChallenge || finished) return;
+  event.preventDefault();
+  event.returnValue = "";
+});
 
 try {
   await init();

@@ -50,10 +50,11 @@ export function clearProgress() {
 
 export function progressUrl(progress) {
   if (!progress) return "./index.html";
+  const mode = ["daily"].includes(progress.mode) ? `&mode=${encodeURIComponent(progress.mode)}` : "";
   if (progress.type === "shikaku") {
-    return `./puzzles/shikaku.html?size=${progress.size || 10}&diff=${progress.difficulty || "standard"}&id=${encodeURIComponent(progress.id || "local")}&resume=true`;
+    return `./puzzles/shikaku.html?size=${progress.size || 10}&diff=${progress.difficulty || "standard"}&id=${encodeURIComponent(progress.id || "local")}&resume=true${mode}`;
   }
-  return `./puzzles/sudoku.html?diff=${progress.difficulty || "easy"}&id=${encodeURIComponent(progress.id || "")}&resume=true`;
+  return `./puzzles/sudoku.html?diff=${progress.difficulty || "easy"}&id=${encodeURIComponent(progress.id || "")}&resume=true${mode}`;
 }
 
 export function progressLabel(progress) {
