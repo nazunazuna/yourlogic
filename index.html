@@ -7,7 +7,7 @@
   <title>YourLogic — ロジックパズルを遊ぶ</title>
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='15' fill='%23142d35'/%3E%3Cpath d='M16 15h32v34H16zM27 15v34M38 15v34M16 27h32M16 38h32' fill='none' stroke='%23c8f135' stroke-width='3'/%3E%3C/svg%3E">
   <link rel="stylesheet" href="./css/base.css?v=20260917-3">
-  <link rel="stylesheet" href="./css/index.css?v=20260917-3">
+  <link rel="stylesheet" href="./css/index.css?v=20260917-4">
 </head>
 <body>
   <header class="site-header">
@@ -84,8 +84,31 @@
         <div><p class="eyebrow">PUZZLE SELECT</p><h2 id="catalog-title" class="section-heading">パズルを選ぶ</h2></div>
         <p>難易度や盤面サイズを選んで開始できます。</p>
       </div>
-      <div class="puzzle-grid">
-        <article class="puzzle-card sudoku-card">
+      <section class="puzzle-browser surface" aria-label="パズルの検索と絞り込み">
+        <label class="puzzle-search-field" for="puzzle-search">
+          <span>パズルを検索</span>
+          <span class="search-input-wrap"><span aria-hidden="true">⌕</span><input id="puzzle-search" type="search" placeholder="名前・説明・タグから検索" autocomplete="off"></span>
+        </label>
+        <label class="puzzle-filter-field" for="puzzle-genre-filter">
+          <span>ジャンル</span>
+          <select id="puzzle-genre-filter"><option value="all">すべてのジャンル</option></select>
+        </label>
+        <label class="puzzle-filter-field" for="puzzle-sort">
+          <span>並べ替え</span>
+          <select id="puzzle-sort">
+            <option value="default">登録順</option>
+            <option value="name-asc">名前順（あ→ん）</option>
+            <option value="name-desc">名前順（ん→あ）</option>
+          </select>
+        </label>
+        <button id="puzzle-filter-reset" class="btn btn-secondary btn-sm" type="button">条件をリセット</button>
+        <div class="puzzle-browser-status">
+          <output id="puzzle-result-count" aria-live="polite">2件のパズル</output>
+          <small>タグにカーソルを合わせると、ジャンルの説明を表示します。</small>
+        </div>
+      </section>
+      <div id="puzzle-grid" class="puzzle-grid">
+        <article class="puzzle-card sudoku-card" data-puzzle-card data-puzzle-id="sudoku" data-puzzle-name="数独" data-genres="pencil-number" data-order="1">
           <div class="card-visual sudoku-visual" aria-hidden="true">
             <div class="mini-sudoku"><span>8</span><i></i><span>2</span><i></i><span>6</span><i></i><i></i><span>4</span><i></i></div>
             <span class="card-number">01</span>
@@ -96,6 +119,7 @@
               <span class="feature-badge">メモ・ヒント</span>
             </div>
             <p class="card-description">縦・横・3×3のブロックに、1〜9を重複なく入れます。</p>
+            <div class="puzzle-tags" aria-label="数独のジャンル"></div>
             <fieldset class="choice-group" data-choice-group="sudoku">
               <legend>難易度</legend>
               <div class="segmented">
@@ -112,7 +136,7 @@
           </div>
         </article>
 
-        <article class="puzzle-card shikaku-card">
+        <article class="puzzle-card shikaku-card" data-puzzle-card data-puzzle-id="shikaku" data-puzzle-name="四角に切れ" data-genres="pencil-number" data-order="2">
           <div class="card-visual shikaku-visual" aria-hidden="true">
             <div class="mini-shikaku"><span>6</span><span>4</span><span>8</span><span>2</span></div>
             <span class="card-number">02</span>
@@ -123,6 +147,7 @@
               <span class="feature-badge">メモ・ヒント</span>
             </div>
             <p class="card-description">数字を1つずつ含み、面積が数字と一致する長方形に盤面を分けます。</p>
+            <div class="puzzle-tags" aria-label="四角に切れのジャンル"></div>
             <div class="shikaku-options">
               <label>盤面サイズ
                 <select id="shikaku-size">
@@ -145,6 +170,11 @@
             <button id="start-shikaku-btn" class="btn btn-primary btn-block" type="button">この四角に切れを始める</button>
           </div>
         </article>
+      </div>
+      <div id="puzzle-empty" class="puzzle-empty surface" hidden>
+        <strong>条件に合うパズルがありません</strong>
+        <p>検索語またはジャンルを変えてお試しください。</p>
+        <button id="puzzle-empty-reset" class="btn btn-secondary btn-sm" type="button">検索条件をリセット</button>
       </div>
     </section>
 
@@ -171,7 +201,9 @@
     </form>
   </dialog>
 
+  <div id="genre-tooltip" class="genre-tooltip" role="tooltip" hidden></div>
+
   <footer class="site-footer">© 2026 YourLogic</footer>
-  <script type="module" src="./js/index.js?v=20260917-3"></script>
+  <script type="module" src="./js/index.js?v=20260917-4"></script>
 </body>
 </html>

@@ -38,6 +38,99 @@ function collectClues(board) {
   return clues;
 }
 
+function parseDraftPoint(value, size) {
+  const [x, y] = String(value).split(",").map(Number);
+  if (!Number.isInteger(x) || !Number.isInteger(y) || x < 0 || y < 0 || x >= size || y >= size) return null;
+  return y * size + x;
+}
+
+function buildMemoKnowledge(draftEdges, size, clues) {
+  const parent = Int32Array.from({ length: size * size }, (_, index) => index);
+  const active = new Set();
+  const find = (value) => {
+    let root = value;
+    while (parent[root] !== root) root = parent[root];
+    while (parent[value] !== value) {
+      const next = parent[value];
+      parent[value] = root;
+      value = next;
+    }
+    return root;
+  };
+  const unite = (left, right) => {
+    const leftRoot = find(left);
+    const rightRoot = find(right);
+    if (leftRoot !== rightRoot) parent[rightRoot] = leftRoot;
+  };
+
+  (Array.isArray(draftEdges) ? draftEdges : [...(draftEdges || [])]).forEach((edge) => {
+    const [leftValue, rightValue] = String(edge).split("|");
+    const left = parseDraftPoint(leftValue, size);
+    const right = parseDraftPoint(rightValue, size);
+    if (left === null || right === null) return;
+    active.add(left);
+    active.add(right);
+    unite(left, right);
+  });
+
+  const componentsByRoot = new Map();
+  active.forEach((cell) => {
+    const root = find(cell);
+    if (!componentsByRoot.has(root)) componentsByRoot.set(root, new Set());
+    componentsByRoot.get(root).add(cell);
+  });
+  const components = [...componentsByRoot.values()].map((cells) => {
+    const componentClues = clues.filter((clue) => cells.has(clue.y * size + clue.x));
+    return { cells, clueId: componentClues.length === 1 ? componentClues[0].id : null, clues: componentClues };
+  });
+  const conflicting = components.find((component) => component.clues.length > 1);
+  if (conflicting) {
+    return {
+      components,
+      recordedByClue: new Map(),
+      error: {
+        tone: "error",
+        cells: [...conflicting.cells].map((cell) => cellPoint(cell, size)),
+        message: "同じ領域を示すメモ線が複数の数字をつないでいます。1つの長方形には数字を1つだけ入れてください。",
+      },
+    };
+  }
+  const oversized = components.find((component) => (
+    component.clueId !== null && component.cells.size > clues[component.clueId].value
+  ));
+  if (oversized) {
+    const clue = clues[oversized.clueId];
+    return {
+      components,
+      recordedByClue: new Map(),
+      error: {
+        tone: "error",
+        cells: [...oversized.cells].map((cell) => cellPoint(cell, size)),
+        number: clue,
+        message: `メモで結んだマス数が「${clue.value}」の面積を超えています。メモ線を見直してください。`,
+      },
+    };
+  }
+  const recordedByClue = new Map();
+  components.forEach((component) => {
+    if (component.clueId !== null) recordedByClue.set(component.clueId, component.cells);
+  });
+  return { components, recordedByClue, error: null };
+}
+
+function candidateHonorsMemo(candidate, clueIndex, memo) {
+  return memo.components.every((component) => {
+    let contained = 0;
+    component.cells.forEach((cell) => { if (candidate.cells.includes(cell)) contained++; });
+    if (component.clueId !== null) {
+      return clueIndex === component.clueId
+        ? contained === component.cells.size
+        : contained === 0;
+    }
+    return contained === 0 || contained === component.cells.size;
+  });
+}
+
 function enumerateCandidates(board, clues) {
   const size = board.length;
   return clues.map((clue) => {
@@ -166,11 +259,13 @@ function validateUserRects(userRects, board, clues) {
   return null;
 }
 
-function logicalHint(userRects, board) {
+function logicalHint(userRects, board, draftEdges = []) {
   const size = board.length;
   const clues = collectClues(board);
   const validationError = validateUserRects(userRects, board, clues);
   if (validationError) return { tone: "error", ...validationError };
+  const memo = buildMemoKnowledge(draftEdges, size, clues);
+  if (memo.error) return memo.error;
 
   const fixedByClue = new Map();
   userRects.forEach((rect) => {
@@ -185,9 +280,10 @@ function logicalHint(userRects, board) {
   const allCandidates = enumerateCandidates(board, clues);
   const candidatesByClue = allCandidates.map((candidates, clueIndex) => {
     const fixed = fixedByClue.get(clueIndex);
-    if (fixed) return candidates.filter((candidate) => sameRect(candidate, fixed));
+    if (fixed) return candidates.filter((candidate) => sameRect(candidate, fixed) && candidateHonorsMemo(candidate, clueIndex, memo));
     return candidates.filter((candidate) => (
       [...fixedByClue.values()].every((fixedRect) => !overlaps(candidate, fixedRect))
+      && candidateHonorsMemo(candidate, clueIndex, memo)
     ));
   });
 
@@ -196,17 +292,17 @@ function logicalHint(userRects, board) {
     return {
       tone: "error",
       number: impossibleClue,
-      message: `${impossibleClue.y + 1}行${impossibleClue.x + 1}列の「${impossibleClue.value}」を作れる場所が残っていません。入力済みの枠を見直してください。`,
+      message: `${impossibleClue.y + 1}行${impossibleClue.x + 1}列の「${impossibleClue.value}」を作れる場所が残っていません。入力済みの枠またはメモを見直してください。`,
     };
   }
 
-  if (userRects.length) {
+  if (userRects.length || memo.components.length) {
     const feasibility = hasCompletion(candidatesByClue, size, { deadline: now() + 300, maxNodes: 70000 });
     if (feasibility === false) {
       return {
         tone: "error",
         cells: userRects.flatMap((rect) => rectCells(rect, size).map((cell) => cellPoint(cell, size))),
-        message: "入力済みの枠の組合せでは盤面全体を分割できません。赤い範囲のどれかを一つ戻して考え直してみましょう。",
+        message: "入力済みの枠とメモの組合せでは盤面全体を分割できません。赤い範囲の入力を見直してみましょう。",
       };
     }
   }
@@ -216,6 +312,8 @@ function logicalHint(userRects, board) {
     const candidates = candidatesByClue[clue.id];
     if (candidates.length === 1) {
       const rect = candidates[0];
+      const recorded = memo.recordedByClue.get(clue.id) || new Set();
+      if (rect.cells.every((cell) => recorded.has(cell))) continue;
       return {
         tone: "hint",
         logicName: "候補が1つ",
@@ -228,8 +326,9 @@ function logicalHint(userRects, board) {
 
   for (const clue of clues) {
     if (fixedByClue.has(clue.id)) continue;
+    const recorded = memo.recordedByClue.get(clue.id) || new Set();
     const common = commonCellIndexes(candidatesByClue[clue.id])
-      .filter((cell) => cell !== clue.y * size + clue.x);
+      .filter((cell) => cell !== clue.y * size + clue.x && !recorded.has(cell));
     if (common.length) {
       return {
         tone: "hint",
@@ -259,16 +358,22 @@ function logicalHint(userRects, board) {
     exclusiveByClue.get(clueIndex).push(cell);
   });
   if (exclusiveByClue.size) {
-    const [clueIndex, forcedCells] = [...exclusiveByClue.entries()]
-      .sort((a, b) => b[1].length - a[1].length)[0];
-    const clue = clues[clueIndex];
-    return {
-      tone: "hint",
-      logicName: "その数字だけが届くマス",
-      cells: forcedCells.map((cell) => cellPoint(cell, size)),
-      number: clue,
-      message: `黄色のマスを覆える候補は、${clue.y + 1}行${clue.x + 1}列の「${clue.value}」から作る長方形だけです。この数字の領域に入ると確定します。`,
-    };
+    const available = [...exclusiveByClue.entries()].map(([clueIndex, cells]) => {
+      const recorded = memo.recordedByClue.get(clueIndex) || new Set();
+      return [clueIndex, cells.filter((cell) => !recorded.has(cell))];
+    }).filter(([, cells]) => cells.length);
+    const bestAvailable = available.sort((a, b) => b[1].length - a[1].length)[0];
+    if (bestAvailable) {
+      const [clueIndex, forcedCells] = bestAvailable;
+      const clue = clues[clueIndex];
+      return {
+        tone: "hint",
+        logicName: "その数字だけが届くマス",
+        cells: forcedCells.map((cell) => cellPoint(cell, size)),
+        number: clue,
+        message: `黄色のマスを覆える候補は、${clue.y + 1}行${clue.x + 1}列の「${clue.value}」から作る長方形だけです。この数字の領域に入ると確定します。`,
+      };
+    }
   }
 
   const unresolved = clues
@@ -291,6 +396,8 @@ function logicalHint(userRects, board) {
       if (now() > deadline) { unknown = true; break; }
     }
     if (!unknown && feasible.length === 1) {
+      const recorded = memo.recordedByClue.get(clue.id) || new Set();
+      if (feasible[0].cells.every((cell) => recorded.has(cell))) continue;
       return {
         tone: "hint",
         logicName: "候補の仮定と矛盾",
@@ -300,7 +407,9 @@ function logicalHint(userRects, board) {
       };
     }
     if (!unknown && feasible.length > 1) {
-      const common = commonCellIndexes(feasible).filter((cell) => cell !== clue.y * size + clue.x);
+      const recorded = memo.recordedByClue.get(clue.id) || new Set();
+      const common = commonCellIndexes(feasible)
+        .filter((cell) => cell !== clue.y * size + clue.x && !recorded.has(cell));
       if (common.length) {
         return {
           tone: "hint",
@@ -335,12 +444,13 @@ function toTwoStageHint(hint) {
   return { ...hint, focusCells, focusMessage };
 }
 
-/** 第3引数は旧API互換のため受け取りますが、解答データは一切参照しません。 */
-export function getShikakuHint(userRects, board, _unusedSolution = null) {
+/** 第3引数の draftEdges だけを参照し、保存済みの解答データは一切使用しません。 */
+export function getShikakuHint(userRects, board, options = {}) {
   if (!Array.isArray(board) || !board.length || board.some((row) => !Array.isArray(row) || row.length !== board.length)) {
     return { tone: "error", message: "盤面データを読み取れませんでした。" };
   }
-  return toTwoStageHint(logicalHint(userRects || [], board));
+  const draftEdges = !Array.isArray(options) && options?.draftEdges ? options.draftEdges : [];
+  return toTwoStageHint(logicalHint(userRects || [], board, draftEdges));
 }
 
 export function enumerateShikakuCandidates(board, clues = collectClues(board)) {
