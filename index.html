@@ -7,7 +7,7 @@
   <title>YourLogic — ロジックパズルを遊ぶ</title>
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='15' fill='%23142d35'/%3E%3Cpath d='M16 15h32v34H16zM27 15v34M38 15v34M16 27h32M16 38h32' fill='none' stroke='%23c8f135' stroke-width='3'/%3E%3C/svg%3E">
   <link rel="stylesheet" href="./css/base.css">
-  <link rel="stylesheet" href="./css/index.css">
+  <link rel="stylesheet" href="./css/index.css?v=20260917-1">
 </head>
 <body>
   <header class="site-header">
@@ -39,9 +39,13 @@
         <p>数独と四角に切れを、問題生成・ヒント・途中保存つきで遊べます。</p>
       </div>
       <div class="quick-play surface">
-        <div class="quick-icon" aria-hidden="true">09</div>
-        <div><span>今日のおすすめ</span><strong>中級の数独</strong></div>
-        <button id="daily-btn" class="btn btn-accent" type="button">すぐ解く</button>
+        <div id="daily-icon" class="quick-icon" aria-hidden="true">…</div>
+        <div>
+          <span>今日のおすすめ</span>
+          <strong id="daily-title">本日の問題を準備中…</strong>
+          <small id="daily-date">日本時間で毎日更新</small>
+        </div>
+        <button id="daily-btn" class="btn btn-accent" type="button" disabled>すぐ解く</button>
       </div>
     </section>
 
@@ -57,6 +61,19 @@
     </section>
 
     <div id="home-status" class="notice shell" role="status" aria-live="polite" hidden></div>
+
+    <section class="challenge shell surface" aria-labelledby="challenge-title">
+      <div class="challenge-mark" aria-hidden="true">?</div>
+      <div class="challenge-copy">
+        <p class="eyebrow">RANDOM CHALLENGE</p>
+        <h2 id="challenge-title">何が出るかは、始めるまで秘密。</h2>
+        <p>全パズルからゲームタイプ・難易度・盤面条件を抽選します。途中保存はできず、退出すると途中棄権になります。</p>
+      </div>
+      <div class="challenge-action">
+        <strong id="challenge-points">ログインすると挑戦できます</strong>
+        <button id="challenge-btn" class="btn btn-accent" type="button" disabled>1ポイントで挑戦</button>
+      </div>
+    </section>
 
     <section id="puzzles" class="catalog shell" aria-labelledby="catalog-title">
       <div class="catalog-head">
@@ -151,6 +168,6 @@
   </dialog>
 
   <footer class="site-footer">© 2026 YourLogic</footer>
-  <script type="module" src="./js/index.js?v=20260916-3"></script>
+  <script type="module" src="./js/index.js?v=20260917-1"></script>
 </body>
 </html>
