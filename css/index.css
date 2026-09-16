@@ -7,6 +7,7 @@
 .quick-icon { width: 54px; height: 54px; display: grid; place-items: center; border: 1px solid rgba(255,255,255,.25); border-radius: 12px; color: var(--lime); font-weight: 900; letter-spacing: .06em; }
 .quick-play span { display: block; color: #b8c8c3; font-size: .78rem; font-weight: 800; }
 .quick-play strong { display: block; font-size: 1.15rem; }
+.quick-play small { display: block; margin-top: 3px; color: #8fa6a0; font-size: .68rem; font-weight: 700; }
 .quick-play .btn { grid-column: 1 / -1; position: relative; z-index: 1; }
 .resume { margin-bottom: 20px; padding: 14px 16px; display: flex; align-items: center; justify-content: space-between; gap: 20px; border: 1px solid #aac7c9; border-radius: var(--radius); background: #effbfa; }
 .resume[hidden] { display: none; }
@@ -15,6 +16,13 @@
 .resume-copy strong { color: var(--navy); }
 .resume-dot { width: 11px; height: 11px; border-radius: 50%; background: var(--blue); box-shadow: 0 0 0 7px rgba(35,122,135,.12); }
 #home-status { margin-bottom: 20px; }
+.challenge { margin-bottom: 20px; padding: 22px 24px; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 20px; border-color: #275760; background: linear-gradient(120deg, #142d35, #1d5860); color: #fff; }
+.challenge-mark { width: 58px; height: 58px; display: grid; place-items: center; border: 1px solid rgba(200,241,53,.5); border-radius: 50%; color: var(--lime); font-size: 1.7rem; font-weight: 900; }
+.challenge-copy .eyebrow { color: var(--lime); }
+.challenge-copy h2 { margin: 3px 0 5px; font-size: clamp(1.1rem, 2.5vw, 1.55rem); letter-spacing: -.025em; }
+.challenge-copy > p:last-child { max-width: 690px; margin: 0; color: #bfd0cb; font-size: .82rem; }
+.challenge-action { min-width: 190px; display: grid; gap: 8px; text-align: center; }
+.challenge-action strong { color: #d8e4e0; font-size: .74rem; }
 .catalog { padding-top: 36px; scroll-margin-top: 82px; }
 .catalog-head { margin-bottom: 20px; display: flex; align-items: end; justify-content: space-between; gap: 24px; }
 .catalog-head > p { max-width: 370px; margin: 0; color: var(--ink-soft); text-align: right; }
@@ -67,6 +75,8 @@
   .quick-play .btn { grid-column: auto; }
   .puzzle-grid { grid-template-columns: 1fr; }
   .how-to { grid-template-columns: 1fr; gap: 28px; }
+  .challenge { grid-template-columns: auto 1fr; }
+  .challenge-action { grid-column: 1 / -1; grid-template-columns: 1fr auto; align-items: center; text-align: left; }
 }
 @media (max-width: 620px) {
   .intro { padding-top: 34px; }
@@ -75,6 +85,9 @@
   .quick-play .btn { grid-column: 1 / -1; }
   .resume { align-items: stretch; flex-direction: column; }
   .resume-actions .btn { flex: 1; }
+  .challenge { grid-template-columns: 1fr; padding: 20px; }
+  .challenge-mark { display: none; }
+  .challenge-action { grid-column: auto; grid-template-columns: 1fr; text-align: left; }
   .catalog-head { align-items: start; flex-direction: column; }
   .catalog-head > p { text-align: left; }
   .card-visual { height: 165px; }
