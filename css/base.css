@@ -23,6 +23,9 @@
 
 * { box-sizing: border-box; }
 
+/* Author styles such as display:flex/grid must never override the hidden state. */
+[hidden] { display: none !important; }
+
 html { scroll-behavior: smooth; }
 
 body {
