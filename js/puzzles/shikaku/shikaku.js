@@ -32,6 +32,8 @@ let elapsed = 0;
 let startedAt = Date.now();
 let timerId = null;
 let finished = false;
+let completionState = null;
+let checkingSolution = false;
 let currentUser = null;
 
 onAuthStateChanged(auth, (user) => { currentUser = user; });
@@ -75,6 +77,12 @@ function showMessage(text, tone = "") {
   message.hidden = !text;
 }
 
+function guardFinished() {
+  if (!finished) return false;
+  showMessage(completionState === "cleared" ? "パズルはクリア済みです！" : "このパズルは終了済みです。", "success");
+  return true;
+}
+
 function snapshot() {
   return {
     userRects: userRects.map((rect) => ({ ...rect })),
@@ -95,7 +103,7 @@ const history = createUndoHistory({
   onChange: ({ canUndo }) => { undoButton.disabled = !canUndo || finished; },
 });
 function undo() {
-  if (finished) return;
+  if (guardFinished()) return;
   if (history.undo()) showMessage("一つ前の状態に戻しました。");
 }
 undoButton.addEventListener("click", undo);
@@ -210,7 +218,7 @@ function cellsBetween(a, b) {
 }
 
 board.addEventListener("pointerdown", (event) => {
-  if (finished) return;
+  if (guardFinished()) return;
   const coord = cellFromEvent(event);
   if (!coord) return;
   event.preventDefault();
@@ -274,6 +282,7 @@ function completeDrag() {
   if (!sameState(before, after)) history.record(before);
   render();
   persist();
+  if (mode === "draw" && !validate().uncovered) void checkSolution(true);
 }
 
 board.addEventListener("pointerup", completeDrag);
@@ -284,6 +293,7 @@ board.addEventListener("pointercancel", () => {
 });
 
 document.querySelectorAll(".mode").forEach((button) => button.addEventListener("click", () => {
+  if (guardFinished()) return;
   mode = button.dataset.mode;
   document.querySelectorAll(".mode").forEach((item) => {
     const active = item === button;
@@ -323,19 +333,24 @@ function validate() {
   return { valid: !errors.length && !uncovered, errors, uncovered };
 }
 
-document.getElementById("check-btn").addEventListener("click", async () => {
+async function checkSolution(automatic = false) {
+  if (guardFinished() || checkingSolution) return;
+  checkingSolution = true;
   clearHighlights();
   const result = validate();
   if (result.errors.length) {
     result.errors.forEach((rect) => eachCell(rect, (x, y) => cells[y][x].classList.add("error")));
-    showMessage("数字の個数か面積が合わない四角形があります。赤い範囲を確認してください。", "error");
+    showMessage(`${automatic ? "盤面が埋まったため自動で確認しました。" : ""}数字の個数か面積が合わない四角形があります。赤い範囲を確認してください。`, "error");
+    checkingSolution = false;
     return;
   }
   if (result.uncovered) {
     showMessage("まだ埋まっていないマス、または重なっている範囲があります。", "error");
+    checkingSolution = false;
     return;
   }
   finished = true;
+  completionState = "cleared";
   clearInterval(timerId);
   clearProgress();
   history.clear();
@@ -345,10 +360,15 @@ document.getElementById("check-btn").addEventListener("click", async () => {
   } catch (error) {
     console.error("記録の保存に失敗しました", error);
     showMessage(`クリアしましたが、記録を保存できませんでした。（${error.code || "unknown"}）`, "error");
+  } finally {
+    checkingSolution = false;
   }
-});
+}
+
+document.getElementById("check-btn").addEventListener("click", () => { void checkSolution(false); });
 
 document.getElementById("hint-btn").addEventListener("click", () => {
+  if (guardFinished()) return;
   clearHighlights();
   const hint = getShikakuHint(userRects, boardNumbers, solutionRects);
   if (hint.rect) eachCell(hint.rect, (x, y) => cells[y][x].classList.add(hint.tone === "error" ? "error" : "hint-area"));
@@ -357,6 +377,7 @@ document.getElementById("hint-btn").addEventListener("click", () => {
 });
 
 document.getElementById("clear-btn").addEventListener("click", () => {
+  if (guardFinished()) return;
   if (!userRects.length && !draftEdges.size) return;
   if (!confirm("盤面への入力をすべて消しますか？")) return;
   const before = snapshot();
@@ -370,8 +391,10 @@ document.getElementById("clear-btn").addEventListener("click", () => {
 });
 
 document.getElementById("answer-btn").addEventListener("click", async () => {
+  if (guardFinished()) return;
   if (!confirm("解答を表示すると、この問題は終了済みになります。表示しますか？")) return;
   finished = true;
+  completionState = "answer-revealed";
   clearInterval(timerId);
   userRects = solutionRects.map(({ x1, y1, x2, y2 }) => ({ x1, y1, x2, y2 }));
   draftEdges.clear();
