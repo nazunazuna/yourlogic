@@ -1,5 +1,5 @@
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-import { auth, fetchOrInitUser, fetchPuzzleById, markPuzzleFinished, saveClearRecord } from "../../services/firebaseService.js";
+import { auth, fetchOrInitUser, fetchPuzzleById, markPuzzleFinished, saveClearRecord } from "../../services/firebaseService.js?v=20260916-2";
 import { executeHintLogic } from "./sudokuHint.js";
 import { clearProgress, loadProgress, saveProgress } from "../../core/progressStore.js";
 import { bindUndoShortcut, createUndoHistory } from "../../core/historyStore.js";
