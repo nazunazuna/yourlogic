@@ -5,7 +5,7 @@ import {
   createGeneratedPuzzle, fetchOrInitUser, fetchPuzzles,
   getGuestFinishedPuzzleIds, markPuzzleFinished, syncGenerationPoints,
   MAX_GENERATION_POINTS,
-} from "./services/firebaseService.js";
+} from "./services/firebaseService.js?v=20260916-2";
 import { generatePuzzle } from "./puzzles/sudoku/sudokuGenerator.js";
 import { generateShikakuPuzzle } from "./puzzles/shikaku/shikakuGenerator.js";
 import { clearProgress, loadProgress, progressLabel, progressUrl } from "./core/progressStore.js";
