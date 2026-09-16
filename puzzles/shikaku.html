@@ -40,10 +40,10 @@
       <aside class="tool-panel">
         <section class="tool-card surface">
           <h2>入力方法</h2>
-          <p>始点から終点までドラッグして範囲を選びます。</p>
+          <p>枠線は範囲を選択し、下書きは通過したマスの中心を線で結びます。</p>
           <div class="mode-switch" role="group" aria-label="入力モード">
             <button class="mode active" data-mode="draw" type="button" aria-pressed="true"><span>▣</span>枠線</button>
-            <button class="mode" data-mode="draft" type="button" aria-pressed="false"><span>▒</span>下書き</button>
+            <button class="mode" data-mode="draft" type="button" aria-pressed="false"><span>⌁</span>下書き</button>
             <button class="mode" data-mode="erase" type="button" aria-pressed="false"><span>×</span>消す</button>
           </div>
         </section>
@@ -55,6 +55,7 @@
           <div class="action-list">
             <button id="check-btn" class="btn btn-primary btn-block" type="button">答え合わせ</button>
             <button id="hint-btn" class="btn btn-secondary btn-block" type="button">ヒントを見る</button>
+            <button id="undo-btn" class="btn btn-secondary btn-block" type="button" disabled>一個もどる</button>
             <button id="clear-btn" class="btn btn-secondary btn-block" type="button">入力をすべて消す</button>
             <button id="answer-btn" class="text-button" type="button">解答を表示する</button>
           </div>
@@ -66,6 +67,7 @@
             <li>各四角形に数字は1つだけ</li>
             <li>数字と四角形の面積を一致させる</li>
             <li>盤面をすべて埋める</li>
+            <li>⌘Z / Ctrl+Zで一個もどる</li>
           </ul>
         </section>
       </aside>
