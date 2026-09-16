@@ -2,7 +2,7 @@ import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/f
 import { auth, fetchPuzzleById, markPuzzleFinished, saveClearRecord } from "../../services/firebaseService.js?v=20260917-3";
 import { clearProgress, loadProgress, saveProgress } from "../../core/progressStore.js?v=20260917-3";
 import { bindUndoShortcut, createUndoHistory } from "../../core/historyStore.js?v=20260917-3";
-import { completeForcedShikakuRectangles, getShikakuHint } from "./shikakuHint.js?v=20260917-3";
+import { completeForcedShikakuRectangles, getShikakuHint } from "./shikakuHint.js?v=20260917-4";
 
 const params = new URLSearchParams(location.search);
 const allowedSizes = [5, 10, 15, 20, 25, 30, 40, 50];
@@ -133,10 +133,12 @@ function renderHintStage() {
       : "ヒント1：着目箇所を見る";
 }
 
-function resetHintStage() {
+function resetHintStage(hideVisibleHint = false) {
+  const hadVisibleHint = Boolean(pendingHint || hintStage > 0);
   pendingHint = null;
   hintStage = 0;
   renderHintStage();
+  if (hideVisibleHint && hadVisibleHint) showMessage("");
 }
 
 function showCompletionPanel() {
@@ -169,7 +171,7 @@ function snapshot() {
 function applySnapshot(saved) {
   userRects = (saved.userRects || []).map((rect) => ({ ...rect }));
   draftEdges = new Set(saved.draftEdges || []);
-  resetHintStage();
+  resetHintStage(true);
   clearHighlights();
   render();
   persist();
@@ -325,7 +327,7 @@ board.addEventListener("pointerdown", (event) => {
   if (!coord) return;
   event.preventDefault();
   board.setPointerCapture?.(event.pointerId);
-  resetHintStage();
+  resetHintStage(true);
   clearHighlights();
   dragStart = coord;
   dragEnd = coord;
@@ -526,7 +528,7 @@ hintButton.addEventListener("click", () => {
   }
 
   clearHighlights();
-  pendingHint = getShikakuHint(userRects, boardNumbers);
+  pendingHint = getShikakuHint(userRects, boardNumbers, { draftEdges: [...draftEdges] });
   if (["error", "success"].includes(pendingHint.tone)) {
     paintFullHint(pendingHint);
     showMessage(pendingHint.message, pendingHint.tone);

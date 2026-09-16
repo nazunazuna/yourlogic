@@ -10,6 +10,7 @@ import {
 import { generatePuzzle } from "./puzzles/sudoku/sudokuGenerator.js?v=20260917-3";
 import { generateShikakuPuzzle } from "./puzzles/shikaku/shikakuGenerator.js?v=20260917-3";
 import { clearProgress, loadProgress, progressLabel, progressUrl } from "./core/progressStore.js?v=20260917-3";
+import { filterAndSortPuzzles, getPuzzleGenre, PUZZLE_GENRES } from "./core/puzzleCatalog.js?v=20260917-4";
 
 const DIFFICULTIES = ["easy", "standard", "hard", "insane"];
 const DIFFICULTY_NAMES = { easy: "初級", standard: "中級", hard: "上級", insane: "超上級" };
@@ -52,6 +53,111 @@ const dailyBtn = $("#daily-btn");
 const challengeBtn = $("#challenge-btn");
 const sizeSelect = $("#shikaku-size");
 const stockDialog = $("#stock-dialog");
+const puzzleGrid = $("#puzzle-grid");
+const puzzleSearch = $("#puzzle-search");
+const puzzleGenreFilter = $("#puzzle-genre-filter");
+const puzzleSort = $("#puzzle-sort");
+const puzzleResultCount = $("#puzzle-result-count");
+const puzzleEmpty = $("#puzzle-empty");
+const genreTooltip = $("#genre-tooltip");
+
+const puzzleCatalog = [...document.querySelectorAll("[data-puzzle-card]")].map((card, index) => ({
+  id: card.dataset.puzzleId,
+  name: card.dataset.puzzleName,
+  subtitle: card.querySelector(".card-title-row p")?.textContent || "",
+  description: card.querySelector(".card-description")?.textContent || "",
+  genres: String(card.dataset.genres || "other").split(",").map((value) => value.trim()).filter(Boolean),
+  order: Number(card.dataset.order || index + 1),
+  card,
+}));
+
+function hideGenreTooltip() {
+  if (genreTooltip) genreTooltip.hidden = true;
+}
+
+function showGenreTooltip(tag, description) {
+  if (!genreTooltip || !description) return;
+  genreTooltip.textContent = description;
+  genreTooltip.hidden = false;
+  const tagRect = tag.getBoundingClientRect();
+  const tooltipRect = genreTooltip.getBoundingClientRect();
+  const left = Math.min(
+    innerWidth - tooltipRect.width - 12,
+    Math.max(12, tagRect.left + (tagRect.width - tooltipRect.width) / 2),
+  );
+  let top = tagRect.top - tooltipRect.height - 9;
+  if (top < 8) top = tagRect.bottom + 9;
+  genreTooltip.style.left = `${left}px`;
+  genreTooltip.style.top = `${top}px`;
+}
+
+function renderPuzzleTags() {
+  puzzleCatalog.forEach((puzzle) => {
+    const container = puzzle.card.querySelector(".puzzle-tags");
+    if (!container) return;
+    const tags = puzzle.genres.map((id) => {
+      const genre = getPuzzleGenre(id);
+      const tag = document.createElement("button");
+      tag.type = "button";
+      tag.className = "puzzle-tag";
+      tag.textContent = genre.label;
+      tag.dataset.genre = genre.id;
+      if (genre.description) {
+        tag.setAttribute("aria-label", `${genre.label}：${genre.description}`);
+        tag.addEventListener("pointerenter", () => showGenreTooltip(tag, genre.description));
+        tag.addEventListener("pointerleave", hideGenreTooltip);
+        tag.addEventListener("focus", () => showGenreTooltip(tag, genre.description));
+        tag.addEventListener("blur", hideGenreTooltip);
+      }
+      tag.addEventListener("click", () => {
+        puzzleGenreFilter.value = genre.id;
+        applyPuzzleBrowser();
+      });
+      return tag;
+    });
+    container.replaceChildren(...tags);
+  });
+}
+
+function applyPuzzleBrowser() {
+  hideGenreTooltip();
+  const matches = filterAndSortPuzzles(puzzleCatalog, {
+    query: puzzleSearch.value,
+    genre: puzzleGenreFilter.value,
+    sort: puzzleSort.value,
+  });
+  const visibleIds = new Set(matches.map((puzzle) => puzzle.id));
+  puzzleCatalog.forEach((puzzle) => { puzzle.card.hidden = !visibleIds.has(puzzle.id); });
+  matches.forEach((puzzle) => puzzleGrid.append(puzzle.card));
+  puzzleGrid.hidden = matches.length === 0;
+  puzzleEmpty.hidden = matches.length !== 0;
+  puzzleResultCount.textContent = `${matches.length}件のパズル`;
+}
+
+function resetPuzzleBrowser() {
+  puzzleSearch.value = "";
+  puzzleGenreFilter.value = "all";
+  puzzleSort.value = "default";
+  applyPuzzleBrowser();
+  puzzleSearch.focus();
+}
+
+PUZZLE_GENRES.forEach((genre) => {
+  const option = document.createElement("option");
+  option.value = genre.id;
+  option.textContent = genre.label;
+  if (genre.description) option.title = genre.description;
+  puzzleGenreFilter.append(option);
+});
+renderPuzzleTags();
+puzzleSearch.addEventListener("input", applyPuzzleBrowser);
+puzzleGenreFilter.addEventListener("change", applyPuzzleBrowser);
+puzzleSort.addEventListener("change", applyPuzzleBrowser);
+$("#puzzle-filter-reset").addEventListener("click", resetPuzzleBrowser);
+$("#puzzle-empty-reset").addEventListener("click", resetPuzzleBrowser);
+window.addEventListener("scroll", hideGenreTooltip, { passive: true });
+window.addEventListener("resize", hideGenreTooltip);
+applyPuzzleBrowser();
 
 function showStatus(message, tone = "") {
   status.textContent = message;
