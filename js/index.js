@@ -1,15 +1,20 @@
 import { onAuthStateChanged, signInWithPopup, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 import { doc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 import {
-  auth, db, provider, calculateGenerationPoints, checkUserExists,
-  createGeneratedPuzzle, fetchOrInitUser, fetchPuzzles,
-  getGuestFinishedPuzzleIds, markPuzzleFinished, syncGenerationPoints,
+  auth, db, provider, cacheDailyPuzzle, calculateGenerationPoints, checkUserExists,
+  createGeneratedPuzzle, fetchOrInitUser, fetchPuzzles, getCachedDailyPuzzle,
+  getGuestFinishedPuzzleIds, getJstDateKey, markPuzzleFinished, syncGenerationPoints,
   MAX_GENERATION_POINTS,
-} from "./services/firebaseService.js?v=20260916-2";
-import { generatePuzzle } from "./puzzles/sudoku/sudokuGenerator.js";
-import { generateShikakuPuzzle } from "./puzzles/shikaku/shikakuGenerator.js?v=20260916-3";
-import { clearProgress, loadProgress, progressLabel, progressUrl } from "./core/progressStore.js";
+} from "./services/firebaseService.js?v=20260917-1";
+import { generatePuzzle } from "./puzzles/sudoku/sudokuGenerator.js?v=20260917-1";
+import { generateShikakuPuzzle } from "./puzzles/shikaku/shikakuGenerator.js?v=20260917-1";
+import { clearProgress, loadProgress, progressLabel, progressUrl } from "./core/progressStore.js?v=20260917-1";
 
+const DIFFICULTIES = ["easy", "standard", "hard", "insane"];
+const DIFFICULTY_NAMES = { easy: "初級", standard: "中級", hard: "上級", insane: "超上級" };
+const PUZZLE_TYPES = ["sudoku", "shikaku"];
+const PUZZLE_NAMES = { sudoku: "数独", shikaku: "四角に切れ" };
+const PUZZLE_ICONS = { sudoku: "09", shikaku: "▣" };
 const SHIKAKU_SIZES = {
   easy: [5, 10],
   standard: [10, 15, 20, 25, 30],
@@ -17,6 +22,8 @@ const SHIKAKU_SIZES = {
   insane: [30, 40, 50],
 };
 const SHIKAKU_GENERATOR_VERSION = "natural-v2";
+const DAILY_ALGORITHM_VERSION = "daily-v1";
+
 const state = {
   user: null,
   userData: null,
@@ -25,8 +32,11 @@ const state = {
   busy: false,
   authReady: false,
   syncingPoints: false,
+  dailyPuzzle: null,
+  dailyReady: false,
 };
 let staminaInterval = null;
+let dailyRefreshInterval = null;
 
 const $ = (selector) => document.querySelector(selector);
 const loginBtn = $("#login-btn");
@@ -37,6 +47,7 @@ const status = $("#home-status");
 const sudokuBtn = $("#start-sudoku-btn");
 const shikakuBtn = $("#start-shikaku-btn");
 const dailyBtn = $("#daily-btn");
+const challengeBtn = $("#challenge-btn");
 const sizeSelect = $("#shikaku-size");
 const stockDialog = $("#stock-dialog");
 
@@ -48,7 +59,10 @@ function showStatus(message, tone = "") {
 
 function setBusy(busy) {
   state.busy = busy;
-  [sudokuBtn, shikakuBtn, dailyBtn].forEach((button) => { button.disabled = busy || !state.authReady; });
+  [sudokuBtn, shikakuBtn, challengeBtn].forEach((button) => {
+    if (button) button.disabled = busy || !state.authReady;
+  });
+  if (dailyBtn) dailyBtn.disabled = busy || !state.dailyReady;
 }
 
 function renderProgress() {
@@ -92,11 +106,14 @@ document.querySelectorAll("[data-choice-group]").forEach((group) => {
 
 function renderStamina() {
   const box = $("#stamina");
+  const challengePoints = $("#challenge-points");
   if (!state.user || !state.userData) {
     box.hidden = true;
+    if (challengePoints) challengePoints.textContent = "ログインすると挑戦できます";
     return;
   }
   const { points, nextPointAtMs } = calculateGenerationPoints(state.userData);
+  if (challengePoints) challengePoints.textContent = `生成ポイント ${points} / ${MAX_GENERATION_POINTS}`;
   if (points !== Number(state.userData.generationPoints ?? MAX_GENERATION_POINTS) && !state.syncingPoints) {
     state.syncingPoints = true;
     syncGenerationPoints(state.user.uid)
@@ -125,6 +142,7 @@ function progressMetadata(progress) {
     difficulty: progress.difficulty,
     size: progress.type === "sudoku" ? 9 : progress.size,
     elapsedTime: progress.elapsedTime || 0,
+    mode: progress.mode || "normal",
   };
 }
 
@@ -148,15 +166,127 @@ async function confirmReplaceProgress() {
   }
 }
 
-function stableDailyPick(items) {
-  if (!items.length) return null;
-  const date = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Tokyo" }).format(new Date());
-  const score = [...date].reduce((sum, char) => ((sum * 31) + char.charCodeAt(0)) >>> 0, 7);
-  return items[score % items.length];
+function randomPick(items, random = Math.random) {
+  return items.length ? items[Math.floor(random() * items.length)] : null;
 }
 
-function randomPick(items) {
-  return items.length ? items[Math.floor(Math.random() * items.length)] : null;
+function hashSeed(value) {
+  let hash = 2166136261;
+  for (let index = 0; index < value.length; index++) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
+}
+
+function seededRandom(seedText) {
+  let seed = hashSeed(seedText);
+  return () => {
+    seed += 0x6D2B79F5;
+    let value = seed;
+    value = Math.imul(value ^ (value >>> 15), value | 1);
+    value ^= value + Math.imul(value ^ (value >>> 7), value | 61);
+    return ((value ^ (value >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function withRandomSource(random, callback) {
+  const original = Math.random;
+  Math.random = random;
+  try { return callback(); }
+  finally { Math.random = original; }
+}
+
+function randomPuzzleSpecification(random = Math.random) {
+  const type = randomPick(PUZZLE_TYPES, random);
+  const difficulty = randomPick(DIFFICULTIES, random);
+  return {
+    type,
+    difficulty,
+    size: type === "sudoku" ? 9 : randomPick(SHIKAKU_SIZES[difficulty], random),
+  };
+}
+
+function generate(type, difficulty, size) {
+  if (type === "sudoku") return generatePuzzle(difficulty);
+  return generateShikakuPuzzle(size, difficulty);
+}
+
+function generateWithRetries({ type, difficulty, size }) {
+  const attempts = type === "sudoku" ? 10 : 3;
+  for (let attempt = 0; attempt < attempts; attempt++) {
+    const result = generate(type, difficulty, size);
+    if (result) return result;
+  }
+  return null;
+}
+
+function renderDailyPuzzle(puzzle) {
+  if (!puzzle) return;
+  const suffix = puzzle.type === "shikaku" ? `（${puzzle.size} × ${puzzle.size}）` : "";
+  $("#daily-icon").textContent = PUZZLE_ICONS[puzzle.type];
+  $("#daily-title").textContent = `${DIFFICULTY_NAMES[puzzle.difficulty]}の${PUZZLE_NAMES[puzzle.type]}${suffix}`;
+  $("#daily-date").textContent = `${puzzle.dateKey.replaceAll("-", "/")}・生成ポイント不要`;
+}
+
+async function ensureDailyPuzzle() {
+  const cached = getCachedDailyPuzzle();
+  if (cached) {
+    state.dailyPuzzle = cached;
+    state.dailyReady = true;
+    renderDailyPuzzle(cached);
+    setBusy(state.busy);
+    return cached;
+  }
+
+  state.dailyReady = false;
+  $("#daily-title").textContent = "本日の問題を準備中…";
+  $("#daily-date").textContent = "日本時間で毎日更新";
+  setBusy(state.busy);
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
+  try {
+    const dateKey = getJstDateKey();
+    const random = seededRandom(`${DAILY_ALGORITHM_VERSION}:${dateKey}`);
+    const generated = withRandomSource(random, () => {
+      const specification = randomPuzzleSpecification(random);
+      return { specification, puzzleData: generateWithRetries(specification) };
+    });
+    if (!generated.puzzleData) throw new Error("唯一解の本日の問題を生成できませんでした。ページを再読み込みしてください。");
+    // 生成中に日本時間の日付が変わった場合は、古い日付の問題を保存せず新しい日で抽選し直します。
+    if (dateKey !== getJstDateKey()) return ensureDailyPuzzle();
+    const { type, difficulty, size } = generated.specification;
+    const puzzle = {
+      id: `daily-${dateKey.replaceAll("-", "")}`,
+      dateKey,
+      type,
+      difficulty,
+      size,
+      problemData: generated.puzzleData.problemData ?? generated.puzzleData.puzzleData,
+      solutionData: generated.puzzleData.solutionData ?? generated.puzzleData.solutionRects,
+      parameters: {
+        mode: "daily",
+        algorithmVersion: DAILY_ALGORITHM_VERSION,
+        uniqueSolutionVerified: true,
+        ...(type === "shikaku" ? { generatorVersion: SHIKAKU_GENERATOR_VERSION } : {}),
+      },
+      createdAt: new Date().toISOString(),
+    };
+    cacheDailyPuzzle(puzzle);
+    state.dailyPuzzle = puzzle;
+    state.dailyReady = true;
+    renderDailyPuzzle(puzzle);
+    setBusy(state.busy);
+    return puzzle;
+  } catch (error) {
+    console.error(error);
+    state.dailyPuzzle = null;
+    state.dailyReady = false;
+    $("#daily-title").textContent = "準備に失敗しました";
+    $("#daily-date").textContent = "再読み込みすると再試行します";
+    setBusy(state.busy);
+    return null;
+  }
 }
 
 async function userData() {
@@ -172,9 +302,8 @@ async function finishedIds() {
 }
 
 function showNoStockDialog(type, difficulty, size) {
-  const game = type === "sudoku" ? "数独" : "四角に切れ";
   const suffix = type === "shikaku" ? `（${size} × ${size}）` : "";
-  $("#stock-dialog-message").textContent = `${game}${suffix}・${({ easy: "初級", standard: "中級", hard: "上級", insane: "超上級" })[difficulty]}の未終了問題はありません。ログインすると、生成ポイントを1使って新しい問題を作れます。`;
+  $("#stock-dialog-message").textContent = `${PUZZLE_NAMES[type]}${suffix}・${DIFFICULTY_NAMES[difficulty]}の未終了問題はありません。ログインすると、生成ポイントを1使って新しい問題を作れます。`;
   if (typeof stockDialog.showModal === "function") stockDialog.showModal();
   else alert($("#stock-dialog-message").textContent);
 }
@@ -190,31 +319,26 @@ async function beginGoogleLogin() {
   }
 }
 
-function generate(type, difficulty, size) {
-  if (type === "sudoku") return generatePuzzle(difficulty);
-  return generateShikakuPuzzle(size, difficulty);
+function puzzleUrl(type, difficulty, size, id, playMode = "normal") {
+  const mode = playMode === "normal" ? "" : `&mode=${encodeURIComponent(playMode)}`;
+  if (type === "sudoku") return `./puzzles/sudoku.html?diff=${difficulty}&id=${encodeURIComponent(id)}${mode}`;
+  return `./puzzles/shikaku.html?size=${size}&diff=${difficulty}&id=${encodeURIComponent(id)}${mode}`;
 }
 
-function puzzleUrl(type, difficulty, size, id) {
-  if (type === "sudoku") return `./puzzles/sudoku.html?diff=${difficulty}&id=${encodeURIComponent(id)}`;
-  return `./puzzles/shikaku.html?size=${size}&diff=${difficulty}&id=${encodeURIComponent(id)}`;
-}
-
-async function startPuzzle({ type, difficulty, size = null, daily = false }) {
+async function startPuzzle({ type, difficulty, size = null }) {
   if (state.busy || !(await confirmReplaceProgress())) return;
   setBusy(true);
   showStatus("Firestoreから問題を探しています…");
 
   try {
     const fetched = await fetchPuzzles({ type, difficulty, size });
-    // 旧生成器の「数字1の区切り線」問題や、唯一解保証が弱かった問題は新規抽選から外します。
-    // IDを指定した途中保存の再開には影響しません。
-    const available = type === "shikaku"
-      ? fetched.filter((item) => item.parameters?.generatorVersion === SHIKAKU_GENERATOR_VERSION)
-      : fetched;
+    const available = fetched.filter((item) => {
+      if (["challenge", "daily"].includes(item.parameters?.mode)) return false;
+      return type !== "shikaku" || item.parameters?.generatorVersion === SHIKAKU_GENERATOR_VERSION;
+    });
     const finished = await finishedIds();
-    const unplayed = available.filter((item) => !finished.has(item.id));
-    let target = daily ? stableDailyPick(unplayed) : randomPick(unplayed);
+    const targetFromStock = randomPick(available.filter((item) => !finished.has(item.id)));
+    let target = targetFromStock;
 
     if (!target && !state.user) {
       showStatus("");
@@ -230,7 +354,7 @@ async function startPuzzle({ type, difficulty, size = null, daily = false }) {
         return;
       }
       showStatus("唯一解を確認しながら、新しい問題を生成しています…");
-      const puzzleData = generate(type, difficulty, size);
+      const puzzleData = generateWithRetries({ type, difficulty, size });
       if (!puzzleData) throw new Error("唯一解の問題を生成できませんでした。もう一度お試しください。");
       const id = await createGeneratedPuzzle(state.user, {
         type,
@@ -239,11 +363,12 @@ async function startPuzzle({ type, difficulty, size = null, daily = false }) {
         puzzleData,
         parameters: type === "shikaku"
           ? {
+              mode: "normal",
               uniqueSolutionVerified: true,
               generatorVersion: SHIKAKU_GENERATOR_VERSION,
               generatedWithoutUnitCells: true,
             }
-          : { uniqueSolutionVerified: true },
+          : { mode: "normal", uniqueSolutionVerified: true },
       });
       target = { id };
     }
@@ -253,6 +378,68 @@ async function startPuzzle({ type, difficulty, size = null, daily = false }) {
     console.error(error);
     const detail = error?.code ? `（${error.code}）` : "";
     showStatus(`${error?.message || "問題を準備できませんでした。"}${detail}`, "error");
+  } finally {
+    setBusy(false);
+  }
+}
+
+async function startDailyPuzzle() {
+  if (state.busy || !state.dailyPuzzle || !(await confirmReplaceProgress())) return;
+  const finished = await finishedIds();
+  if (finished.has(state.dailyPuzzle.id)) {
+    showStatus("今日のおすすめ問題は終了済みです。次の問題は日本時間の午前0時に更新されます。", "success");
+    return;
+  }
+  const { type, difficulty, size, id } = state.dailyPuzzle;
+  location.href = puzzleUrl(type, difficulty, size, id, "daily");
+}
+
+async function startChallenge() {
+  if (state.busy) return;
+  if (!state.user) {
+    showStatus("チャレンジゲームにはログインが必要です。Googleログインを完了してから、もう一度お試しください。", "error");
+    await beginGoogleLogin();
+    return;
+  }
+  if (!(await confirmReplaceProgress())) return;
+
+  const data = await userData();
+  const stamina = calculateGenerationPoints(data);
+  if (stamina.points <= 0) {
+    showStatus("生成ポイントが0のため、チャレンジを開始できません。次の回復をお待ちください。", "error");
+    return;
+  }
+  if (!confirm("生成ポイントを1使って、ランダムなチャレンジを開始しますか？\n開始後は途中保存できず、退出すると途中棄権になります。")) return;
+
+  setBusy(true);
+  showStatus("ゲームタイプ・難易度・盤面条件を抽選し、唯一解を確認しています…");
+  try {
+    const specification = randomPuzzleSpecification();
+    const puzzleData = generateWithRetries(specification);
+    if (!puzzleData) throw new Error("チャレンジ問題を生成できませんでした。ポイントは消費されていません。もう一度お試しください。");
+    const { type, difficulty, size } = specification;
+    const id = await createGeneratedPuzzle(state.user, {
+      type,
+      difficulty,
+      size,
+      puzzleData,
+      chargeAdmin: true,
+      parameters: {
+        mode: "challenge",
+        uniqueSolutionVerified: true,
+        ...(type === "shikaku" ? {
+          generatorVersion: SHIKAKU_GENERATOR_VERSION,
+          generatedWithoutUnitCells: true,
+        } : {}),
+      },
+    });
+    clearProgress();
+    sessionStorage.setItem(`yourlogic:challenge-session:${id}`, "new");
+    location.href = puzzleUrl(type, difficulty, size, id, "challenge");
+  } catch (error) {
+    console.error(error);
+    const detail = error?.code ? `（${error.code}）` : "";
+    showStatus(`${error?.message || "チャレンジを開始できませんでした。"}${detail}`, "error");
   } finally {
     setBusy(false);
   }
@@ -325,7 +512,8 @@ $("#discard-progress-btn").addEventListener("click", async () => {
 });
 
 sudokuBtn.addEventListener("click", () => startPuzzle({ type: "sudoku", difficulty: state.sudokuDifficulty, size: 9 }));
-dailyBtn.addEventListener("click", () => startPuzzle({ type: "sudoku", difficulty: "standard", size: 9, daily: true }));
+dailyBtn.addEventListener("click", startDailyPuzzle);
+challengeBtn.addEventListener("click", startChallenge);
 shikakuBtn.addEventListener("click", () => startPuzzle({
   type: "shikaku",
   difficulty: state.shikakuDifficulty,
@@ -336,6 +524,11 @@ window.addEventListener("yourlogic:progress", renderProgress);
 renderShikakuSizes();
 renderProgress();
 setBusy(false);
+void ensureDailyPuzzle();
+clearInterval(dailyRefreshInterval);
+dailyRefreshInterval = setInterval(() => {
+  if (state.dailyPuzzle?.dateKey !== getJstDateKey()) void ensureDailyPuzzle();
+}, 60 * 1000);
 
 function registerWebMcp() {
   const context = document.modelContext;
@@ -349,8 +542,8 @@ function registerWebMcp() {
       inputSchema: {
         type: "object",
         properties: {
-          type: { type: "string", enum: ["sudoku", "shikaku"] },
-          difficulty: { type: "string", enum: ["easy", "standard", "hard", "insane"] },
+          type: { type: "string", enum: PUZZLE_TYPES },
+          difficulty: { type: "string", enum: DIFFICULTIES },
           size: { type: "integer", enum: [5, 10, 15, 20, 25, 30, 40, 50] },
         },
         required: ["type", "difficulty"],
@@ -358,8 +551,8 @@ function registerWebMcp() {
       },
       annotations: { readOnlyHint: false, untrustedContentHint: false },
       execute(input) {
-        if (!input || !["sudoku", "shikaku"].includes(input.type)) throw new Error("invalid type");
-        if (!["easy", "standard", "hard", "insane"].includes(input.difficulty)) throw new Error("invalid difficulty");
+        if (!input || !PUZZLE_TYPES.includes(input.type)) throw new Error("invalid type");
+        if (!DIFFICULTIES.includes(input.difficulty)) throw new Error("invalid difficulty");
         const group = document.querySelector(`[data-choice-group="${input.type}"]`);
         const button = group?.querySelector(`[data-value="${input.difficulty}"]`);
         if (!group || !button) throw new Error("puzzle controls are unavailable");
@@ -378,9 +571,9 @@ function registerWebMcp() {
 }
 
 registerWebMcp();
-const auto = new URLSearchParams(location.search).get("auto");
-if (auto === "sudoku") {
-  const difficulty = new URLSearchParams(location.search).get("diff") || "easy";
+const autoParams = new URLSearchParams(location.search);
+if (autoParams.get("auto") === "sudoku") {
+  const difficulty = autoParams.get("diff") || "easy";
   const waitForAuth = setInterval(() => {
     if (!state.authReady) return;
     clearInterval(waitForAuth);
