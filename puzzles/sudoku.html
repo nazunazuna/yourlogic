@@ -7,7 +7,7 @@
   <title>数独 — YourLogic</title>
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='15' fill='%23142d35'/%3E%3Cpath d='M16 15h32v34H16zM27 15v34M38 15v34M16 27h32M16 38h32' fill='none' stroke='%23c8f135' stroke-width='3'/%3E%3C/svg%3E">
   <link rel="stylesheet" href="../css/base.css">
-  <link rel="stylesheet" href="../css/sudoku.css">
+  <link rel="stylesheet" href="../css/sudoku.css?v=20260917-1">
 </head>
 <body>
   <header class="site-header">
@@ -25,7 +25,10 @@
         <p class="eyebrow">NUMBER PLACEMENT</p>
         <h1>数独</h1>
       </div>
-      <div id="auth-status-text" class="player-status">プレイヤー状態を確認中…</div>
+      <div class="heading-status">
+        <span id="play-mode-label" class="play-mode-label" hidden></span>
+        <div id="auth-status-text" class="player-status">プレイヤー状態を確認中…</div>
+      </div>
     </section>
 
     <div class="game-layout">
@@ -81,6 +84,6 @@
     </div>
   </main>
 
-  <script type="module" src="../js/puzzles/sudoku/sudoku.js?v=20260916-3"></script>
+  <script type="module" src="../js/puzzles/sudoku/sudoku.js?v=20260917-1"></script>
 </body>
 </html>
