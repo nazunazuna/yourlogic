@@ -1,8 +1,8 @@
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-import { auth, fetchOrInitUser, fetchPuzzleById, markPuzzleFinished, saveClearRecord } from "../../services/firebaseService.js?v=20260916-2";
-import { executeHintLogic } from "./sudokuHint.js";
-import { clearProgress, loadProgress, saveProgress } from "../../core/progressStore.js";
-import { bindUndoShortcut, createUndoHistory } from "../../core/historyStore.js";
+import { auth, fetchOrInitUser, fetchPuzzleById, markPuzzleFinished, saveClearRecord } from "../../services/firebaseService.js?v=20260917-1";
+import { executeHintLogic } from "./sudokuHint.js?v=20260917-1";
+import { clearProgress, loadProgress, saveProgress } from "../../core/progressStore.js?v=20260917-1";
+import { bindUndoShortcut, createUndoHistory } from "../../core/historyStore.js?v=20260917-1";
 
 // グローバル状態
 let currentUser = null;
@@ -39,7 +39,24 @@ const gameTimerEl = document.getElementById('timer');
 const urlParams = new URLSearchParams(window.location.search);
 let currentDifficulty = urlParams.get('diff') || 'easy'; 
 const targetPuzzleId = urlParams.get('id');
-const isResume = urlParams.get('resume') === 'true'; 
+const requestedPlayMode = urlParams.get('mode');
+const playMode = ['daily', 'challenge'].includes(requestedPlayMode) ? requestedPlayMode : 'normal';
+const isChallenge = playMode === 'challenge';
+const challengeSessionKey = targetPuzzleId ? `yourlogic:challenge-session:${targetPuzzleId}` : null;
+const challengeReentry = Boolean(isChallenge && challengeSessionKey && sessionStorage.getItem(challengeSessionKey) === 'active');
+if (isChallenge && challengeSessionKey && !challengeReentry) sessionStorage.setItem(challengeSessionKey, 'active');
+const isResume = !isChallenge && urlParams.get('resume') === 'true';
+
+if (isChallenge) clearProgress();
+const playModeLabel = document.getElementById('play-mode-label');
+if (playMode === 'daily') {
+    playModeLabel.hidden = false;
+    playModeLabel.textContent = '今日のおすすめ';
+} else if (isChallenge) {
+    playModeLabel.hidden = false;
+    playModeLabel.textContent = 'チャレンジ・途中保存なし';
+    document.getElementById('giveup-btn').textContent = '途中棄権する';
+}
 
 function guardFinished() {
     if (!gameFinished) return false;
@@ -50,6 +67,30 @@ function guardFinished() {
 // 💡 ログイン状態の監視と初期化・復元ロジック
 onAuthStateChanged(auth, async (user) => {
     currentUser = user;
+
+    if (isChallenge && !user) {
+        gameFinished = true;
+        completionState = 'login-required';
+        if (challengeSessionKey) sessionStorage.removeItem(challengeSessionKey);
+        statusText.innerText = "チャレンジゲームを続けるにはログインが必要です。ホームに戻ります。";
+        setTimeout(() => { window.location.href = "../index.html"; }, 1200);
+        return;
+    }
+    if (isChallenge && user && challengeReentry) {
+        gameFinished = true;
+        completionState = 'abandoned';
+        statusText.innerText = "再読み込みされたチャレンジを途中棄権として記録しています…";
+        try {
+            await markPuzzleFinished(user.uid, targetPuzzleId, "abandoned", {
+                type: "sudoku", difficulty: currentDifficulty, size: 9, elapsedTime: 0, mode: playMode,
+            });
+        } catch (error) {
+            console.error("再読み込み時の途中棄権記録に失敗しました:", error);
+        }
+        sessionStorage.removeItem(challengeSessionKey);
+        window.location.href = "../index.html";
+        return;
+    }
     
     if (user) {
         try {
@@ -206,10 +247,11 @@ function renderBoard(boardData) {
 
 // 進行状況をローカルストレージにセーブする関数
 function saveCurrentProgress() {
-    if (!currentPuzzleId || gameFinished) return;
+    if (isChallenge || !currentPuzzleId || gameFinished) return;
 
     const progressData = {
         type: "sudoku",                  
+        mode: playMode,
         difficulty: currentDifficulty,   
         id: currentPuzzleId,             
         board: getNowBoardArray(),       
@@ -623,6 +665,7 @@ async function executeCheck(isAuto = false) {
     if (currentBoardStr === currentSolution) {
         gameFinished = true;
         completionState = 'cleared';
+        if (challengeSessionKey) sessionStorage.removeItem(challengeSessionKey);
         // タイマー停止
         clearInterval(gameTimerId); 
         
@@ -640,7 +683,9 @@ async function executeCheck(isAuto = false) {
             try {
                 const uid = currentUser ? currentUser.uid : null;
                 // Firestoreへ実績保存
-                await saveClearRecord(uid, currentPuzzleId, elapsedTime, { type: "sudoku", difficulty: currentDifficulty, size: 9 });
+                await saveClearRecord(uid, currentPuzzleId, elapsedTime, {
+                    type: "sudoku", difficulty: currentDifficulty, size: 9, mode: playMode,
+                });
                 console.log(`クリア実績を記録しました。 (PuzzleID: ${currentPuzzleId})`);
             } catch (e) {
                 console.error("クリア実績の保存に失敗:", e);
@@ -661,8 +706,35 @@ document.getElementById('hint-btn').addEventListener('click', () => {
     else dismissMistakes();
 });
 
+async function forfeitChallenge(destination = "../index.html") {
+    if (gameFinished) {
+        window.location.href = destination;
+        return;
+    }
+    if (!confirm("チャレンジを途中棄権しますか？\nこのプレイは終了済みとして記録され、続きから再開できません。")) return;
+    gameFinished = true;
+    completionState = 'abandoned';
+    if (challengeSessionKey) sessionStorage.removeItem(challengeSessionKey);
+    clearInterval(gameTimerId);
+    clearProgress();
+    history.clear();
+    dismissMistakes();
+    try {
+        await markPuzzleFinished(currentUser?.uid || auth.currentUser?.uid || null, currentPuzzleId, "abandoned", {
+            type: "sudoku", difficulty: currentDifficulty, size: 9, elapsedTime, mode: playMode,
+        });
+    } catch (error) {
+        console.error("途中棄権の記録に失敗しました:", error);
+    }
+    window.location.href = destination;
+}
+
 document.getElementById('giveup-btn').addEventListener('click', async () => {
     if (guardFinished()) return;
+    if (isChallenge) {
+        await forfeitChallenge();
+        return;
+    }
     if (!currentSolution) {
         alert("解答データが読み込まれていません。");
         return;
@@ -687,7 +759,7 @@ document.getElementById('giveup-btn').addEventListener('click', async () => {
         updateNumberPadStatus();
         try {
             await markPuzzleFinished(currentUser?.uid || auth.currentUser?.uid || null, currentPuzzleId, "answer-revealed", {
-                type: "sudoku", difficulty: currentDifficulty, size: 9, elapsedTime,
+                type: "sudoku", difficulty: currentDifficulty, size: 9, elapsedTime, mode: playMode,
             });
             alert("盤面に模範解答を反映し、この問題を終了済みとして記録しました。");
         } catch (error) {
@@ -695,4 +767,18 @@ document.getElementById('giveup-btn').addEventListener('click', async () => {
             alert(`盤面に模範解答を反映しましたが、終了記録を保存できませんでした。\n${error.code || error.message || "unknown"}`);
         }
     }
+});
+
+document.querySelectorAll('a[href]').forEach((link) => {
+    link.addEventListener('click', (event) => {
+        if (!isChallenge || gameFinished) return;
+        event.preventDefault();
+        void forfeitChallenge(link.href);
+    });
+});
+
+window.addEventListener('beforeunload', (event) => {
+    if (!isChallenge || gameFinished) return;
+    event.preventDefault();
+    event.returnValue = '';
 });
