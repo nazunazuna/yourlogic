@@ -45,6 +45,12 @@
 .text-button { padding: 8px; border: 0; background: transparent; color: var(--ink-soft); cursor: pointer; text-decoration: underline; font-size: .78rem; font-weight: 700; }
 .hint-box { min-height: 0 !important; margin: 0 !important; text-align: left !important; font-size: .82rem; }
 .hint-box[style*="display: block"] { display: block !important; }
+.mistake-panel { position: relative; padding: 18px; border: 1px solid #e7a8ae; border-radius: var(--radius); background: #fff0f1; color: #7b2530; box-shadow: 0 12px 30px rgba(123, 37, 48, .12); }
+.mistake-panel strong { display: block; padding-right: 34px; font-size: .9rem; }
+.mistake-panel p { margin: 4px 0 13px; font-size: .8rem; }
+.mistake-close { position: absolute; top: 10px; right: 10px; width: 32px; height: 32px; display: grid; place-items: center; border: 0; border-radius: 50%; background: #f4c9cd; color: #7b2530; cursor: pointer; font-size: 1.2rem; line-height: 1; }
+.btn-danger { border-color: #a9323e; background: #a9323e; color: #fff; }
+.btn-danger:hover { background: #872732; }
 .rule-card { padding: 16px 18px; border-left: 3px solid var(--lime-dark); color: var(--ink-soft); font-size: .78rem; }
 .rule-card strong { color: var(--navy); }
 .rule-card ul { margin: 7px 0 0; padding-left: 18px; }

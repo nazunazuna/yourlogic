@@ -18,7 +18,7 @@ function highlightHintArea(r, c, targetIdx, cells) {
 export function executeHintLogic(currentSolution, cells, hintTextArea) {
     if (!currentSolution) {
         alert("解答データが読み込まれていません。");
-        return;
+        return { kind: 'unavailable', indexes: [] };
     }
 
     hintTextArea.style.display = 'block';
@@ -65,11 +65,19 @@ export function executeHintLogic(currentSolution, cells, hintTextArea) {
     }
 
     if (conflictIndexes.size > 0) {
-        conflictIndexes.forEach(idx => cells[idx].classList.add('highlight-error'));
-        hintTextArea.style.backgroundColor = '#f8d7da';
-        hintTextArea.style.color = '#721c24';
-        hintTextArea.innerText = "⚠️ ルール上、同じ数字が縦・横・ブロックのどこかで重複しているマスがあります！（赤く表示中）";
-        return;
+        const editableWrong = [...conflictIndexes].filter((idx) => {
+            const value = cells[idx].querySelector('.cell-val').innerText.trim();
+            return !cells[idx].classList.contains('initial') && value && value !== currentSolution[idx];
+        });
+        if (editableWrong.length) {
+            editableWrong.forEach(idx => cells[idx].classList.add('highlight-error'));
+            hintTextArea.style.display = 'none';
+            return {
+                kind: 'mistake',
+                indexes: editableWrong,
+                message: "❌ この数字は間違えています。消してやり直してみましょう。",
+            };
+        }
     }
 
     // ② 誤答チェック
@@ -85,10 +93,12 @@ export function executeHintLogic(currentSolution, cells, hintTextArea) {
 
     if (wrongIndexes.length > 0) {
         wrongIndexes.forEach(idx => cells[idx].classList.add('highlight-error'));
-        hintTextArea.style.backgroundColor = '#f8d7da';
-        hintTextArea.style.color = '#721c24';
-        hintTextArea.innerText = "❌ この数字は間違えています。消してやり直してみましょう。";
-        return;
+        hintTextArea.style.display = 'none';
+        return {
+            kind: 'mistake',
+            indexes: wrongIndexes,
+            message: "❌ この数字は間違えています。消してやり直してみましょう。",
+        };
     }
 
     // ③ 各マスの候補数字を算出

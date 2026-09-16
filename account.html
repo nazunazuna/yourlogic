@@ -417,10 +417,14 @@
             try {
                 await updateDoc(doc(db, "users", currentUser.uid), {
                     clearedPuzzles: [],
+                    finishedPuzzles: [],
+                    generatedPuzzles: [],
                     records: {},
                     clearHistory: [],
+                    finishHistory: [],
                     generationPoints: 5,
-                    lastPointUpdatedAt: new Date()
+                    lastPointUpdatedAt: new Date(),
+                    nextPointAt: null
                 });
                 alert("データを初期化しました。");
                 window.location.reload();

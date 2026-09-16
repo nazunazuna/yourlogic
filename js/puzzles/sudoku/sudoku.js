@@ -1,8 +1,8 @@
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-import { auth, fetchOrInitUser, saveClearRecord } from "../../services/firebaseService.js";
+import { auth, fetchOrInitUser, fetchPuzzleById, markPuzzleFinished, saveClearRecord } from "../../services/firebaseService.js";
 import { executeHintLogic } from "./sudokuHint.js";
-import { doc, getDoc, getFirestore } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 import { clearProgress, loadProgress, saveProgress } from "../../core/progressStore.js";
+import { bindUndoShortcut, createUndoHistory } from "../../core/historyStore.js";
 
 // グローバル状態
 let currentUser = null;
@@ -14,6 +14,9 @@ let isMemoMode = false;
 let currentSolution = "";
 let currentProblem = "";
 let currentPuzzleId = null;
+let gameFinished = false;
+let mistakeIndexes = new Set();
+let mistakeMessage = "❌ この数字は間違えています。消してやり直してみましょう。";
 
 // ⏱️ タイマー関連の変数
 let gameTimerId = null;
@@ -26,6 +29,9 @@ const memoBtn = document.getElementById('memo-btn');
 const modeLocationBtn = document.getElementById('mode-location-btn');
 const modeAutoBtn = document.getElementById('mode-auto-btn');
 const hintTextArea = document.getElementById('hint-text-area');
+const mistakePanel = document.getElementById('mistake-panel');
+const mistakeMessageEl = document.getElementById('mistake-message');
+const undoButton = document.getElementById('undo-btn');
 const timerContainer = document.querySelector('.timer-area'); 
 const gameTimerEl = document.getElementById('timer'); 
 
@@ -119,38 +125,30 @@ function startGameTimer(resumeTime = 0) {
 // 特定のパズルデータをFirestoreから1件取得
 async function loadSpecificPuzzle(puzzleId, savedProgress = null) {
     console.log(`パズルID: ${puzzleId} をストレージからロードします...`);
-    
-    const savedLocal = savedProgress?.type === "sudoku" ? savedProgress : null;
-    const sessionLocal = JSON.parse(sessionStorage.getItem("yourlogic:local-sudoku") || "null");
-    const localPuzzle = savedLocal?.solutionData
-        ? { id: savedLocal.id, problemData: savedLocal.problemData, solutionData: savedLocal.solutionData }
-        : sessionLocal;
 
-    if (puzzleId.startsWith("sudoku-local-") && localPuzzle?.id === puzzleId) {
+    const savedPuzzle = savedProgress?.type === "sudoku" && savedProgress.id === puzzleId
+        ? savedProgress
+        : null;
+    if (savedPuzzle?.problemData && savedPuzzle?.solutionData) {
         currentPuzzleId = puzzleId;
-        displayPuzzle(localPuzzle.problemData, localPuzzle.solutionData);
+        displayPuzzle(savedPuzzle.problemData, savedPuzzle.solutionData);
         startGameTimer();
         return;
     }
 
-    const db = getFirestore();
-    const puzzleRef = doc(db, "puzzles", puzzleId); 
-    const puzzleSnap = await getDoc(puzzleRef);
-
-    if (puzzleSnap.exists()) {
-        const puzzleData = puzzleSnap.data();
-        currentPuzzleId = puzzleId;
-        
-        displayPuzzle(puzzleData.problemData, puzzleData.solutionData);
-        startGameTimer(); 
-
-        if (currentUser) {
-            statusText.innerText = isAdmin 
-                ? `👑 管理者ログイン中: ${currentUser.displayName} (パズルID: ${currentPuzzleId})`
-                : `ログイン中: ${currentUser.displayName} (パズルID: ${currentPuzzleId})`;
-        }
-    } else {
+    const puzzleData = await fetchPuzzleById(puzzleId);
+    if (!puzzleData || puzzleData.type !== "sudoku") {
         throw new Error("指定されたパズルデータがFirestoreに存在しません。");
+    }
+    currentPuzzleId = puzzleId;
+    currentDifficulty = puzzleData.difficulty || currentDifficulty;
+    displayPuzzle(puzzleData.problemData, puzzleData.solutionData);
+    startGameTimer();
+
+    if (currentUser) {
+        statusText.innerText = isAdmin
+            ? `👑 管理者ログイン中: ${currentUser.displayName} (パズルID: ${currentPuzzleId})`
+            : `ログイン中: ${currentUser.displayName} (パズルID: ${currentPuzzleId})`;
     }
 }
 
@@ -201,7 +199,7 @@ function renderBoard(boardData) {
 
 // 進行状況をローカルストレージにセーブする関数
 function saveCurrentProgress() {
-    if (!currentPuzzleId) return; 
+    if (!currentPuzzleId || gameFinished) return;
 
     const progressData = {
         type: "sudoku",                  
@@ -262,12 +260,89 @@ for (let i = 0; i < 81; i++) {
     cells.push(cell);
 }
 
+function renderMistakes() {
+    cells.forEach((cell) => cell.classList.remove('highlight-error'));
+    mistakeIndexes.forEach((idx) => cells[idx]?.classList.add('highlight-error'));
+    mistakePanel.hidden = mistakeIndexes.size === 0;
+    if (!mistakePanel.hidden) mistakeMessageEl.textContent = "消してやり直してみましょう。";
+}
+
+function showMistakes(indexes, message = mistakeMessage) {
+    mistakeIndexes = new Set(indexes);
+    mistakeMessage = message;
+    renderMistakes();
+}
+
+function dismissMistakes() {
+    mistakeIndexes.clear();
+    cells.forEach((cell) => cell.classList.remove('highlight-error'));
+    mistakePanel.hidden = true;
+}
+
+function refreshMistakesAfterInput() {
+    if (!mistakeIndexes.size) return;
+    mistakeIndexes = new Set([...mistakeIndexes].filter((idx) => {
+        const cell = cells[idx];
+        const value = cell.querySelector('.cell-val').innerText.trim();
+        return !cell.classList.contains('initial') && value !== '' && value !== currentSolution[idx];
+    }));
+    renderMistakes();
+}
+
+function captureGameState() {
+    return {
+        board: getNowBoardArray(),
+        mistakeIndexes: [...mistakeIndexes],
+        mistakeMessage,
+    };
+}
+
+function applyGameState(saved) {
+    renderBoard(saved.board);
+    mistakeIndexes = new Set(saved.mistakeIndexes || []);
+    mistakeMessage = saved.mistakeMessage || mistakeMessage;
+    renderMistakes();
+    saveCurrentProgress();
+}
+
+const history = createUndoHistory({
+    apply: applyGameState,
+    onChange: ({ canUndo }) => { undoButton.disabled = !canUndo || gameFinished; },
+});
+
+function undo() {
+    if (gameFinished) return;
+    if (history.undo()) {
+        updateNumberPadStatus();
+        checkAutoVerify();
+    }
+}
+
+undoButton.addEventListener('click', undo);
+bindUndoShortcut(document, undo);
+document.getElementById('dismiss-mistakes-btn').addEventListener('click', dismissMistakes);
+document.getElementById('clear-mistakes-btn').addEventListener('click', () => {
+    if (!mistakeIndexes.size) return;
+    const before = captureGameState();
+    mistakeIndexes.forEach((idx) => {
+        const cell = cells[idx];
+        if (!cell || cell.classList.contains('initial')) return;
+        cell.querySelector('.cell-val').innerText = '';
+        cell.classList.remove('user-filled');
+        cell.querySelectorAll('.memo-grid span').forEach((span) => { span.innerText = ''; });
+    });
+    dismissMistakes();
+    history.record(before);
+    updateNumberPadStatus();
+    saveCurrentProgress();
+});
+
 // スマートハイライト制御関数
 function updateHighlight(selectedIndex) {
     cells.forEach(cell => {
         cell.classList.remove(
             'highlight-selected', 'highlight-area', 'highlight-same',
-            'highlight-error', 'highlight-hint-target', 'highlight-hint-area'
+            'highlight-hint-target', 'highlight-hint-area'
         );
     });
 
@@ -312,6 +387,9 @@ function handleInput(num) {
     if (!selectedCell) return;
     if (selectedCell.classList.contains('initial')) return;
 
+    const before = captureGameState();
+    const beforeBoard = JSON.stringify(before.board);
+
     const cellVal = selectedCell.querySelector('.cell-val');
     const memoGrid = selectedCell.querySelector('.memo-grid');
 
@@ -355,7 +433,10 @@ function handleInput(num) {
     
     const index = parseInt(selectedCell.dataset.index);
     updateHighlight(index);
+    refreshMistakesAfterInput();
     updateNumberPadStatus();
+
+    if (JSON.stringify(getNowBoardArray()) !== beforeBoard) history.record(before);
     
     // 💡 ①【確認・維持】入力、削除、メモ追加など「あらゆる変化」の直後に自動セーブを走らせます
     saveCurrentProgress();
@@ -483,6 +564,9 @@ if (memoBtn) {
 
 // 盤面描画の補助関数
 function displayPuzzle(boardStr, solutionStr) {
+    gameFinished = false;
+    dismissMistakes();
+    history.clear();
     updateHighlight(null);
     currentSolution = solutionStr;
     currentProblem = boardStr;
@@ -514,11 +598,13 @@ async function executeCheck(isAuto = false) {
     }
 
     if (currentBoardStr === currentSolution) {
+        gameFinished = true;
         // タイマー停止
         clearInterval(gameTimerId); 
         
         // 💡 ②【実装】正解したので途中セーブデータを削除
         onPuzzleCleared(); 
+        history.clear();
         
         const minutes = Math.floor(elapsedTime / 60);
         const seconds = elapsedTime % 60;
@@ -545,17 +631,24 @@ async function executeCheck(isAuto = false) {
 
 // イベントの紐付け
 document.getElementById('check-btn').addEventListener('click', () => executeCheck(false));
-document.getElementById('hint-btn').addEventListener('click', () => executeHintLogic(currentSolution, cells, hintTextArea));
+document.getElementById('hint-btn').addEventListener('click', () => {
+    const result = executeHintLogic(currentSolution, cells, hintTextArea);
+    if (result?.kind === 'mistake') showMistakes(result.indexes, result.message);
+    else dismissMistakes();
+});
 
-document.getElementById('giveup-btn').addEventListener('click', () => {
+document.getElementById('giveup-btn').addEventListener('click', async () => {
     if (!currentSolution) {
         alert("解答データが読み込まれていません。");
         return;
     }
 
     if (confirm("本当に諦めますか？すべてのマスに模範解答が配置されます。")) {
+        gameFinished = true;
         clearInterval(gameTimerId); 
         clearProgress();
+        history.clear();
+        dismissMistakes();
         cells.forEach((cell, i) => {
             if (cell.classList.contains('initial')) return;
             const cellVal = cell.querySelector('.cell-val');
@@ -566,6 +659,14 @@ document.getElementById('giveup-btn').addEventListener('click', () => {
         });
         updateHighlight(null);
         updateNumberPadStatus();
-        alert("盤面に模範解答を反映しました。");
+        try {
+            await markPuzzleFinished(currentUser?.uid || auth.currentUser?.uid || null, currentPuzzleId, "answer-revealed", {
+                type: "sudoku", difficulty: currentDifficulty, size: 9, elapsedTime,
+            });
+            alert("盤面に模範解答を反映し、この問題を終了済みとして記録しました。");
+        } catch (error) {
+            console.error("終了記録の保存に失敗しました:", error);
+            alert(`盤面に模範解答を反映しましたが、終了記録を保存できませんでした。\n${error.code || error.message || "unknown"}`);
+        }
     }
 });
