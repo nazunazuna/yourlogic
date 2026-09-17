@@ -7,7 +7,7 @@
   <title>YourLogic — ロジックパズルを遊ぶ</title>
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='15' fill='%23142d35'/%3E%3Cpath d='M16 15h32v34H16zM27 15v34M38 15v34M16 27h32M16 38h32' fill='none' stroke='%23c8f135' stroke-width='3'/%3E%3C/svg%3E">
   <link rel="stylesheet" href="./css/base.css?v=20260917-3">
-  <link rel="stylesheet" href="./css/index.css?v=20260917-5">
+  <link rel="stylesheet" href="./css/index.css?v=20260918-1">
 </head>
 <body>
   <header class="site-header">
@@ -187,7 +187,7 @@
             <p class="card-description">同じ数字同士を交差しない線で結び、すべてのマスをちょうど一度通ります。</p>
             <div class="puzzle-tags" aria-label="ナンバーリンクのジャンル"></div>
             <fieldset class="choice-group" data-choice-group="numberlink">
-              <legend>難易度（5×5〜8×8）</legend>
+              <legend>難易度（初級5×5／中級10×10／上級20×20／超上級30×30）</legend>
               <div class="segmented">
                 <button class="choice active" data-value="easy" type="button" aria-pressed="true">初級</button>
                 <button class="choice" data-value="standard" type="button" aria-pressed="false">中級</button>
@@ -222,9 +222,12 @@
       <p class="eyebrow">PUZZLE STOCK</p>
       <h2 id="stock-dialog-title">未プレイの問題がありません</h2>
       <p id="stock-dialog-message">ログインすると、生成ポイントを使って新しい問題を作れます。</p>
+      <p id="stock-dialog-points" class="stock-dialog-points" hidden></p>
       <div class="dialog-actions">
         <button class="btn btn-secondary" value="cancel" type="submit">閉じる</button>
+        <a id="dialog-account-link" class="btn btn-secondary" href="./account.html" hidden>アカウント画面へ</a>
         <button id="dialog-login-btn" class="btn btn-primary" value="login" type="submit">Googleでログイン</button>
+        <button id="dialog-generate-btn" class="btn btn-primary" value="generate" type="submit" hidden>1ポイント使って生成</button>
       </div>
     </form>
   </dialog>
@@ -232,6 +235,6 @@
   <div id="genre-tooltip" class="genre-tooltip" role="tooltip" hidden></div>
 
   <footer class="site-footer">© 2026 YourLogic</footer>
-  <script type="module" src="./js/index.js?v=20260917-5"></script>
+  <script type="module" src="./js/index.js?v=20260918-1"></script>
 </body>
 </html>

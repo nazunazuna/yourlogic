@@ -7,7 +7,7 @@ import {
 import {
   decodePuzzleDataFromFirestore,
   encodePuzzleDataForFirestore,
-} from "../core/puzzleDataCodec.js?v=20260917-5";
+} from "../core/puzzleDataCodec.js?v=20260918-1";
 
 const firebaseConfig = {
   apiKey: "AIzaSyCkbdX-B6FfIVplmG98tIvxO0uUv-mYDSw",
@@ -182,16 +182,14 @@ export async function createGeneratedPuzzle(user, specification) {
     if (!userSnapshot.exists()) throw new Error("ユーザーデータが見つかりません。");
     const userData = userSnapshot.data();
     const stamina = calculateGenerationPoints(userData, now);
-    const isAdmin = userData.isAdmin === true;
-    const adminFree = isAdmin && specification.chargeAdmin !== true;
-    if (!adminFree && stamina.points <= 0) {
+    if (stamina.points <= 0) {
       const error = new Error("生成ポイントがありません。");
       error.code = "generation-points-empty";
       throw error;
     }
 
-    const remaining = adminFree ? stamina.points : stamina.points - 1;
-    const timerBase = !adminFree && stamina.points >= MAX_GENERATION_POINTS ? now : stamina.updatedAtMs;
+    const remaining = stamina.points - 1;
+    const timerBase = stamina.points >= MAX_GENERATION_POINTS ? now : stamina.updatedAtMs;
     transaction.set(puzzleRef, puzzleDocument(user.uid, specification));
     transaction.update(userRef, {
       generationPoints: remaining,
@@ -244,6 +242,27 @@ export async function syncGenerationPoints(uid) {
       nextPointAt: after.nextPointAtMs ? new Date(after.nextPointAtMs) : null,
     });
   });
+}
+
+/** 管理者本人だけが、自分の生成ポイントを即時に満タンへ戻せます。 */
+export async function refillAdminGenerationPoints(user) {
+  if (!user?.uid) throw new Error("ログインが必要です。");
+  const userRef = doc(db, "users", user.uid);
+  await runTransaction(db, async (transaction) => {
+    const snapshot = await transaction.get(userRef);
+    if (!snapshot.exists()) throw new Error("ユーザーデータが見つかりません。");
+    if (snapshot.data().isAdmin !== true) {
+      const error = new Error("管理者アカウントだけが実行できます。");
+      error.code = "permission-denied";
+      throw error;
+    }
+    transaction.update(userRef, {
+      generationPoints: MAX_GENERATION_POINTS,
+      lastPointUpdatedAt: new Date(),
+      nextPointAt: null,
+    });
+  });
+  return MAX_GENERATION_POINTS;
 }
 
 const GUEST_FINISHED_KEY = "yourlogic:guest-finished:v1";

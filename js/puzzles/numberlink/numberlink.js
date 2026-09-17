@@ -1,14 +1,14 @@
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-import { auth, fetchPuzzleById, markPuzzleFinished, saveClearRecord } from "../../services/firebaseService.js?v=20260917-5";
-import { clearProgress, loadProgress, saveProgress } from "../../core/progressStore.js?v=20260917-5";
-import { bindUndoShortcut, createUndoHistory } from "../../core/historyStore.js?v=20260917-5";
-import { getNumberlinkHint } from "./numberlinkHint.js?v=20260917-5";
-import { normalizeNumberlinkProblem, parseNumberlinkEdge } from "./numberlinkSolver.js?v=20260917-5";
+import { auth, fetchPuzzleById, markPuzzleFinished, saveClearRecord } from "../../services/firebaseService.js?v=20260918-1";
+import { clearProgress, loadProgress, saveProgress } from "../../core/progressStore.js?v=20260918-1";
+import { bindUndoShortcut, createUndoHistory } from "../../core/historyStore.js?v=20260918-1";
+import { getNumberlinkHint } from "./numberlinkHint.js?v=20260918-1";
+import { normalizeNumberlinkProblem, parseNumberlinkEdge } from "./numberlinkSolver.js?v=20260918-1";
 
 const params = new URLSearchParams(location.search);
-const allowedSizes = [5, 6, 7, 8, 9, 10];
+const allowedSizes = [5, 10, 20, 30];
 const difficultyNames = { easy: "初級", standard: "中級", hard: "上級", insane: "超上級" };
-const defaultSizes = { easy: 5, standard: 6, hard: 7, insane: 8 };
+const defaultSizes = { easy: 5, standard: 10, hard: 20, insane: 30 };
 let difficulty = ["easy", "standard", "hard", "insane"].includes(params.get("diff")) ? params.get("diff") : "standard";
 const requestedSize = Number(params.get("size")) || defaultSizes[difficulty];
 let size = allowedSizes.includes(requestedSize) ? requestedSize : defaultSizes[difficulty];
@@ -87,7 +87,10 @@ onAuthStateChanged(auth, async (user) => {
 });
 
 function colorFor(label) {
-  return COLORS[(Math.max(1, Number(label)) - 1) % COLORS.length];
+  const index = Math.max(1, Number(label)) - 1;
+  if (COLORS[index]) return COLORS[index];
+  const hue = Math.round((index * 137.508) % 360);
+  return `hsl(${hue} 62% 42%)`;
 }
 
 function formatTime(seconds) {
@@ -269,7 +272,9 @@ function createBoard() {
   cells.length = 0;
   board.style.gridTemplateColumns = `repeat(${size}, minmax(0, 1fr))`;
   board.style.gridTemplateRows = `repeat(${size}, minmax(0, 1fr))`;
-  board.style.setProperty("--cell-font", `${Math.max(12, Math.min(26, 170 / size))}px`);
+  board.style.setProperty("--endpoint-border", size >= 20 ? "1px" : size >= 10 ? "2px" : "3px");
+  board.style.minWidth = `${Math.max(0, size * 21)}px`;
+  board.style.setProperty("--cell-font", `${Math.max(7, Math.min(26, 190 / size))}px`);
   for (let cell = 0; cell < size * size; cell++) {
     const element = document.createElement("div");
     element.className = "numberlink-cell";

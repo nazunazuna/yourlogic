@@ -11,13 +11,13 @@
 .game-meta span { padding: 6px 10px; border: 1px solid var(--line); border-radius: 999px; background: #fff; color: var(--ink-soft); font-size: .76rem; font-weight: 800; }
 .game-meta .play-mode-label { border-color: var(--navy); background: var(--navy); color: var(--lime); }
 .game-layout { display: grid; grid-template-columns: minmax(0, 720px) minmax(270px, 330px); align-items: start; gap: 22px; }
-.board-panel { min-width: 0; padding: clamp(10px, 2vw, 20px); border-color: var(--line-strong); }
+.board-panel { min-width: 0; padding: clamp(10px, 2vw, 20px); overflow: auto; border-color: var(--line-strong); }
 .loading { min-height: 420px; display: grid; place-items: center; color: var(--ink-soft); font-weight: 800; }
 .numberlink-board { position: relative; width: 100%; aspect-ratio: 1; display: grid; overflow: hidden; border: 3px solid var(--navy); background: #fff; touch-action: none; user-select: none; cursor: crosshair; }
 .numberlink-board[hidden] { display: none; }
 .numberlink-cell { position: relative; min-width: 0; min-height: 0; display: grid; place-items: center; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); background: #fff; color: var(--navy); font-size: var(--cell-font, 1rem); font-weight: 900; line-height: 1; }
 .numberlink-cell.path-filled { background: color-mix(in srgb, var(--path-color) 9%, #fff); }
-.numberlink-cell.endpoint::before { content: ""; position: absolute; z-index: 5; width: 68%; height: 68%; border: 3px solid var(--path-color); border-radius: 50%; background: #fff; box-shadow: 0 2px 8px rgba(20,45,53,.12); }
+.numberlink-cell.endpoint::before { content: ""; position: absolute; z-index: 5; width: 68%; height: 68%; border: var(--endpoint-border, 2px) solid var(--path-color); border-radius: 50%; background: #fff; box-shadow: 0 2px 8px rgba(20,45,53,.12); }
 .numberlink-cell.endpoint > span { position: relative; z-index: 7; color: var(--path-color); text-shadow: 0 1px #fff; }
 .numberlink-cell.endpoint.complete::before { opacity: .55; background: color-mix(in srgb, var(--path-color) 13%, #fff); }
 .numberlink-cell.hint-focus { background: #e9f8fa; outline: 2px dashed var(--blue); outline-offset: -3px; }

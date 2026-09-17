@@ -6,11 +6,11 @@ import {
   getGuestDailyStats,
   getGuestFinishedPuzzleIds, getJstDateKey, markPuzzleFinished, syncGenerationPoints,
   MAX_GENERATION_POINTS,
-} from "./services/firebaseService.js?v=20260917-5";
-import { generatePuzzle } from "./puzzles/sudoku/sudokuGenerator.js?v=20260917-3";
-import { generateShikakuPuzzle } from "./puzzles/shikaku/shikakuGenerator.js?v=20260917-3";
-import { generateNumberlinkPuzzle, numberlinkSizeForDifficulty } from "./puzzles/numberlink/numberlinkGenerator.js?v=20260917-5";
-import { clearProgress, loadProgress, progressLabel, progressUrl } from "./core/progressStore.js?v=20260917-5";
+} from "./services/firebaseService.js?v=20260918-1";
+import { generatePuzzle } from "./puzzles/sudoku/sudokuGenerator.js?v=20260918-1";
+import { generateShikakuPuzzle } from "./puzzles/shikaku/shikakuGenerator.js?v=20260918-1";
+import { generateNumberlinkPuzzle, numberlinkSizeForDifficulty } from "./puzzles/numberlink/numberlinkGenerator.js?v=20260918-1";
+import { clearProgress, loadProgress, progressLabel, progressUrl } from "./core/progressStore.js?v=20260918-1";
 import { filterAndSortPuzzles, getPuzzleGenre, PUZZLE_GENRES } from "./core/puzzleCatalog.js?v=20260917-4";
 
 const DIFFICULTIES = ["easy", "standard", "hard", "insane"];
@@ -25,8 +25,8 @@ const SHIKAKU_SIZES = {
   insane: [30, 40, 50],
 };
 const SHIKAKU_GENERATOR_VERSION = "logic-v4";
-const NUMBERLINK_GENERATOR_VERSION = "edge-csp-v1";
-const DAILY_ALGORITHM_VERSION = "daily-v3";
+const NUMBERLINK_GENERATOR_VERSION = "induced-partition-v2";
+const DAILY_ALGORITHM_VERSION = "daily-v4";
 
 const state = {
   user: null,
@@ -57,6 +57,12 @@ const dailyBtn = $("#daily-btn");
 const challengeBtn = $("#challenge-btn");
 const sizeSelect = $("#shikaku-size");
 const stockDialog = $("#stock-dialog");
+const stockDialogTitle = $("#stock-dialog-title");
+const stockDialogMessage = $("#stock-dialog-message");
+const stockDialogPoints = $("#stock-dialog-points");
+const stockLoginButton = $("#dialog-login-btn");
+const stockGenerateButton = $("#dialog-generate-btn");
+const stockAccountLink = $("#dialog-account-link");
 const puzzleGrid = $("#puzzle-grid");
 const puzzleSearch = $("#puzzle-search");
 const puzzleGenreFilter = $("#puzzle-genre-filter");
@@ -332,7 +338,7 @@ function generate(type, difficulty, size) {
 }
 
 function generateWithRetries({ type, difficulty, size }) {
-  const attempts = type === "sudoku" ? 10 : type === "shikaku" ? 3 : 2;
+  const attempts = type === "sudoku" ? 10 : type === "shikaku" ? 3 : 1;
   for (let attempt = 0; attempt < attempts; attempt++) {
     const result = generate(type, difficulty, size);
     if (result) return result;
@@ -455,11 +461,47 @@ async function finishedIds() {
   return new Set([...(data.finishedPuzzles || []), ...(data.clearedPuzzles || [])]);
 }
 
-function showNoStockDialog(type, difficulty, size) {
+function stockDescription(type, difficulty, size) {
   const suffix = type === "sudoku" ? "" : `（${size} × ${size}）`;
-  $("#stock-dialog-message").textContent = `${PUZZLE_NAMES[type]}${suffix}・${DIFFICULTY_NAMES[difficulty]}の未終了問題はありません。ログインすると、生成ポイントを1使って新しい問題を作れます。`;
-  if (typeof stockDialog.showModal === "function") stockDialog.showModal();
-  else alert($("#stock-dialog-message").textContent);
+  return `${PUZZLE_NAMES[type]}${suffix}・${DIFFICULTY_NAMES[difficulty]}`;
+}
+
+function showGuestNoStockDialog(type, difficulty, size) {
+  stockDialogTitle.textContent = "未プレイの問題がありません";
+  stockDialogMessage.textContent = `${stockDescription(type, difficulty, size)}の保存済み問題は、すべて終了済みか、まだ1問もありません。ログインすると新しい問題の生成へ進めます。`;
+  stockDialogPoints.hidden = true;
+  stockLoginButton.hidden = false;
+  stockGenerateButton.hidden = true;
+  stockAccountLink.hidden = true;
+  if (typeof stockDialog.showModal === "function") {
+    stockDialog.returnValue = "cancel";
+    stockDialog.showModal();
+  }
+  else alert(stockDialogMessage.textContent);
+}
+
+function confirmGeneratedPuzzle(type, difficulty, size, data) {
+  const stamina = calculateGenerationPoints(data);
+  stockDialogTitle.textContent = stamina.points > 0 ? "新しい問題を生成しますか？" : "生成ポイントがありません";
+  stockDialogMessage.textContent = stamina.points > 0
+    ? `${stockDescription(type, difficulty, size)}の未終了問題がありません。生成ポイントを1使って、新しい問題を作成しますか？`
+    : `${stockDescription(type, difficulty, size)}の未終了問題がありません。ポイントが回復してから、もう一度お試しください。`;
+  stockDialogPoints.hidden = false;
+  stockDialogPoints.textContent = `現在の生成ポイント：${stamina.points} / ${MAX_GENERATION_POINTS}`;
+  stockLoginButton.hidden = true;
+  stockGenerateButton.hidden = stamina.points <= 0;
+  stockAccountLink.hidden = !(stamina.points <= 0 && data.isAdmin === true);
+  if (data.isAdmin === true && stamina.points <= 0) {
+    stockDialogMessage.textContent += " 管理者はアカウント画面からポイントを満タンに戻せます。";
+  }
+  if (typeof stockDialog.showModal !== "function") {
+    return Promise.resolve(stamina.points > 0 && confirm(`${stockDialogMessage.textContent}\n\n${stockDialogPoints.textContent}`));
+  }
+  return new Promise((resolve) => {
+    stockDialog.addEventListener("close", () => resolve(stockDialog.returnValue === "generate"), { once: true });
+    stockDialog.returnValue = "cancel";
+    stockDialog.showModal();
+  });
 }
 
 async function beginGoogleLogin() {
@@ -499,18 +541,20 @@ async function startPuzzle({ type, difficulty, size = null }) {
 
     if (!target && !state.user) {
       showStatus("");
-      showNoStockDialog(type, difficulty, size);
+      showGuestNoStockDialog(type, difficulty, size);
       return;
     }
 
     if (!target) {
       const data = await userData();
       const stamina = calculateGenerationPoints(data);
-      if (!data.isAdmin && stamina.points <= 0) {
-        showStatus("未終了の問題がなく、生成ポイントも0です。次の回復を待つか、別の条件を選んでください。", "error");
+      const approved = await confirmGeneratedPuzzle(type, difficulty, size, data);
+      if (!approved) {
+        showStatus(stamina.points > 0 ? "新しい問題の生成をキャンセルしました。" : "生成ポイントの回復をお待ちください。", stamina.points > 0 ? "" : "error");
         return;
       }
       showStatus("唯一解を確認しながら、新しい問題を生成しています…");
+      await new Promise((resolve) => setTimeout(resolve, 0));
       const puzzleData = generateWithRetries({ type, difficulty, size });
       if (!puzzleData) throw new Error("唯一解の問題を生成できませんでした。もう一度お試しください。");
       const id = await createGeneratedPuzzle(state.user, {
@@ -525,7 +569,10 @@ async function startPuzzle({ type, difficulty, size = null }) {
             generatorVersion: SHIKAKU_GENERATOR_VERSION,
             generatedWithoutUnitCells: true,
           } : {}),
-          ...(type === "numberlink" ? { generatorVersion: NUMBERLINK_GENERATOR_VERSION } : {}),
+          ...(type === "numberlink" ? {
+            generatorVersion: NUMBERLINK_GENERATOR_VERSION,
+            generatedAsInducedPartition: true,
+          } : {}),
         },
       });
       target = { id };
@@ -572,6 +619,7 @@ async function startChallenge() {
   setBusy(true);
   showStatus("ゲームタイプ・難易度・盤面条件を抽選し、唯一解を確認しています…");
   try {
+    await new Promise((resolve) => setTimeout(resolve, 0));
     const specification = randomPuzzleSpecification();
     const puzzleData = generateWithRetries(specification);
     if (!puzzleData) throw new Error("チャレンジ問題を生成できませんでした。ポイントは消費されていません。もう一度お試しください。");
@@ -581,7 +629,6 @@ async function startChallenge() {
       difficulty,
       size,
       puzzleData,
-      chargeAdmin: true,
       parameters: {
         mode: "challenge",
         uniqueSolutionVerified: true,
@@ -589,7 +636,10 @@ async function startChallenge() {
           generatorVersion: SHIKAKU_GENERATOR_VERSION,
           generatedWithoutUnitCells: true,
         } : {}),
-        ...(type === "numberlink" ? { generatorVersion: NUMBERLINK_GENERATOR_VERSION } : {}),
+        ...(type === "numberlink" ? {
+          generatorVersion: NUMBERLINK_GENERATOR_VERSION,
+          generatedAsInducedPartition: true,
+        } : {}),
       },
     });
     clearProgress();
@@ -646,7 +696,7 @@ onAuthStateChanged(auth, async (user) => {
 loginBtn.addEventListener("click", beginGoogleLogin);
 $("#dialog-login-btn").addEventListener("click", (event) => {
   event.preventDefault();
-  stockDialog.close();
+  stockDialog.close("login");
   beginGoogleLogin();
 });
 logoutBtn.addEventListener("click", async () => {
