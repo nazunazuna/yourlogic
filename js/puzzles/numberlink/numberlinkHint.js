@@ -4,7 +4,7 @@ import {
   numberlinkSolutionOwners,
   parseNumberlinkEdge,
   solveNumberlink,
-} from "./numberlinkSolver.js";
+} from "./numberlinkSolver.js?v=20260918-1";
 
 export function numberlinkPathsToEdges(paths = {}) {
   const edges = [];

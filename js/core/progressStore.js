@@ -55,7 +55,7 @@ export function progressUrl(progress) {
     return `./puzzles/shikaku.html?size=${progress.size || 10}&diff=${progress.difficulty || "standard"}&id=${encodeURIComponent(progress.id || "local")}&resume=true${mode}`;
   }
   if (progress.type === "numberlink") {
-    return `./puzzles/numberlink.html?size=${progress.size || 6}&diff=${progress.difficulty || "standard"}&id=${encodeURIComponent(progress.id || "local")}&resume=true${mode}`;
+    return `./puzzles/numberlink.html?size=${progress.size || 10}&diff=${progress.difficulty || "standard"}&id=${encodeURIComponent(progress.id || "local")}&resume=true${mode}`;
   }
   return `./puzzles/sudoku.html?diff=${progress.difficulty || "easy"}&id=${encodeURIComponent(progress.id || "")}&resume=true${mode}`;
 }

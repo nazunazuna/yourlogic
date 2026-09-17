@@ -194,6 +194,18 @@
         .btn-secondary:hover { background-color: #e2e8f0; }
         .btn-danger { background-color: var(--danger-color); color: white; }
 
+        .admin-tools {
+            border: 2px solid #f2c46d;
+            background: #fffaf0;
+        }
+        .admin-action {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 1rem;
+        }
+        .admin-action p { color: var(--text-muted); font-size: 0.88rem; }
+
         /* デンジャーゾーン */
         .danger-zone {
             border: 2px solid #fed7d7;
@@ -212,8 +224,8 @@
         .danger-desc p { font-size: 0.85rem; color: var(--text-muted); }
 
         @media (max-width: 600px) {
-            .danger-action { flex-direction: column; align-items: flex-start; }
-            .danger-action .btn { width: 100%; }
+            .danger-action, .admin-action { flex-direction: column; align-items: flex-start; }
+            .danger-action .btn, .admin-action .btn { width: 100%; }
         }
     </style>
 </head>
@@ -264,9 +276,20 @@
                         </div>
                         <div class="stat-box">
                             <div class="num" id="stat-stamina-count">-</div>
-                            <div class="label">現在の生成猶予</div>
+                            <div class="label">現在の生成ポイント</div>
                         </div>
                     </div>
+                </div>
+            </div>
+
+            <div id="admin-point-card" class="settings-card admin-tools" style="display: none;">
+                <div class="settings-section-title">🛠 管理者機能</div>
+                <div class="admin-action">
+                    <div>
+                        <h5>生成ポイントを回復</h5>
+                        <p>自分の生成ポイントを、待ち時間なしで5ポイントまで回復します。</p>
+                    </div>
+                    <button id="refill-points-btn" class="btn btn-primary" type="button">5 / 5まで回復</button>
                 </div>
             </div>
 
@@ -301,13 +324,17 @@
         import { onAuthStateChanged, updateProfile, signOut, deleteUser, reauthenticateWithPopup } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
         // 💡 重複チェックに必要な Firestore メソッド（collection, query, where, getDocs）を追加インポート
         import { doc, updateDoc, deleteDoc, collection, query, where, getDocs } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
-        import { auth, db, provider, fetchOrInitUser } from "./js/services/firebaseService.js?v=20260916-2";
+        import {
+            auth, db, provider, calculateGenerationPoints, fetchOrInitUser,
+            refillAdminGenerationPoints
+        } from "./js/services/firebaseService.js?v=20260918-1";
 
         const loadingScreen = document.getElementById('loading-screen');
         const settingsContent = document.getElementById('settings-content');
         const errorBox = document.getElementById('error-box');
         
         let currentUser = null;
+        let currentUserData = null;
         let lastSavedName = ""; // 現在保存されている名前を保持する変数
 
         document.getElementById('brand-title').addEventListener('click', () => { window.location.href = './index.html'; });
@@ -323,6 +350,7 @@
 
             try {
                 const userData = await fetchOrInitUser(user);
+                currentUserData = userData;
                 
                 lastSavedName = user.displayName || userData?.displayName || "";
                 document.getElementById('display-name-input').value = lastSavedName;
@@ -330,10 +358,11 @@
                 
                 if (userData?.isAdmin) {
                     document.getElementById('admin-badge').style.display = 'inline-block';
+                    document.getElementById('admin-point-card').style.display = 'block';
                 }
 
                 document.getElementById('stat-cleared-count').textContent = userData?.clearedPuzzles?.length || 0;
-                document.getElementById('stat-stamina-count').textContent = `${userData?.generationPoints ?? 5}/5`;
+                document.getElementById('stat-stamina-count').textContent = `${calculateGenerationPoints(userData).points}/5`;
 
                 loadingScreen.style.display = 'none';
                 settingsContent.style.display = 'block';
@@ -408,6 +437,27 @@
                     await signOut(auth);
                     window.location.href = './index.html';
                 } catch (e) { console.error(e); }
+            }
+        });
+
+        document.getElementById('refill-points-btn').addEventListener('click', async () => {
+            if (!currentUser || currentUserData?.isAdmin !== true) return;
+            const button = document.getElementById('refill-points-btn');
+            button.disabled = true;
+            button.textContent = '回復中...';
+            try {
+                await refillAdminGenerationPoints(currentUser);
+                currentUserData.generationPoints = 5;
+                currentUserData.lastPointUpdatedAt = new Date();
+                currentUserData.nextPointAt = null;
+                document.getElementById('stat-stamina-count').textContent = '5/5';
+                alert('生成ポイントを5 / 5まで回復しました。');
+            } catch (error) {
+                console.error(error);
+                alert(error?.message || '生成ポイントを回復できませんでした。');
+            } finally {
+                button.disabled = false;
+                button.textContent = '5 / 5まで回復';
             }
         });
 
