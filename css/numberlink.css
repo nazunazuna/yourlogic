@@ -1,0 +1,70 @@
+.game-clock { margin-left: auto; display: flex; align-items: baseline; gap: 9px; font-variant-numeric: tabular-nums; }
+.game-clock span { color: #9fb2ac; font-size: .68rem; font-weight: 900; letter-spacing: .12em; }
+.game-clock strong { color: var(--lime); font-size: 1.05rem; }
+.game-shell { width: min(1120px, calc(100% - 32px)); margin: 0 auto; padding: 34px 0 70px; }
+.game-heading { display: flex; justify-content: space-between; align-items: end; gap: 24px; margin-bottom: 20px; }
+.game-heading .eyebrow { margin-top: 20px; }
+.game-heading h1 { margin: 0; color: var(--navy); font-size: clamp(2rem, 5vw, 3.3rem); line-height: 1; letter-spacing: -.055em; }
+.back-link { color: var(--ink-soft); font-size: .84rem; font-weight: 800; text-decoration: none; }
+.back-link:hover { color: var(--blue); }
+.game-meta { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 7px; }
+.game-meta span { padding: 6px 10px; border: 1px solid var(--line); border-radius: 999px; background: #fff; color: var(--ink-soft); font-size: .76rem; font-weight: 800; }
+.game-meta .play-mode-label { border-color: var(--navy); background: var(--navy); color: var(--lime); }
+.game-layout { display: grid; grid-template-columns: minmax(0, 720px) minmax(270px, 330px); align-items: start; gap: 22px; }
+.board-panel { min-width: 0; padding: clamp(10px, 2vw, 20px); border-color: var(--line-strong); }
+.loading { min-height: 420px; display: grid; place-items: center; color: var(--ink-soft); font-weight: 800; }
+.numberlink-board { position: relative; width: 100%; aspect-ratio: 1; display: grid; overflow: hidden; border: 3px solid var(--navy); background: #fff; touch-action: none; user-select: none; cursor: crosshair; }
+.numberlink-board[hidden] { display: none; }
+.numberlink-cell { position: relative; min-width: 0; min-height: 0; display: grid; place-items: center; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); background: #fff; color: var(--navy); font-size: var(--cell-font, 1rem); font-weight: 900; line-height: 1; }
+.numberlink-cell.path-filled { background: color-mix(in srgb, var(--path-color) 9%, #fff); }
+.numberlink-cell.endpoint::before { content: ""; position: absolute; z-index: 5; width: 68%; height: 68%; border: 3px solid var(--path-color); border-radius: 50%; background: #fff; box-shadow: 0 2px 8px rgba(20,45,53,.12); }
+.numberlink-cell.endpoint > span { position: relative; z-index: 7; color: var(--path-color); text-shadow: 0 1px #fff; }
+.numberlink-cell.endpoint.complete::before { opacity: .55; background: color-mix(in srgb, var(--path-color) 13%, #fff); }
+.numberlink-cell.hint-focus { background: #e9f8fa; outline: 2px dashed var(--blue); outline-offset: -3px; }
+.numberlink-cell.hint-area { background: #fff0ce; outline: 2px solid var(--orange); outline-offset: -3px; }
+.numberlink-cell.error { background: #ffe1e4; outline: 2px solid #c74655; outline-offset: -3px; }
+.numberlink-cell.answer { background: #f1f8df; }
+.path-overlay { position: absolute; inset: 0; z-index: 3; width: 100%; height: 100%; pointer-events: none; }
+.path-underlay, .path-line { fill: none; stroke-linecap: round; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
+.path-underlay { stroke: #fff; stroke-width: 11; opacity: .96; }
+.path-line { stroke: var(--path-color); stroke-width: 7; }
+.tool-panel { display: grid; gap: 14px; }
+.tool-card { padding: 18px; box-shadow: none; }
+.tool-card h2 { margin: 0; color: var(--navy); font-size: .95rem; }
+.tool-card > p { margin: 6px 0 14px; color: var(--ink-soft); font-size: .78rem; line-height: 1.55; }
+.mode-switch { display: grid; gap: 6px; }
+.mode-switch.two-modes { grid-template-columns: repeat(2, 1fr); }
+.mode { min-height: 64px; display: grid; place-items: center; gap: 2px; padding: 7px 3px; border: 1px solid var(--line); border-radius: 9px; background: #fff; color: var(--ink-soft); cursor: pointer; font-size: .74rem; font-weight: 800; }
+.mode span { font-size: 1.15rem; line-height: 1; }
+.mode.active { border-color: var(--navy); background: var(--navy); color: #fff; }
+.action-list { display: grid; gap: 8px; margin-top: 12px; }
+.hint-steps { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 5px; margin-top: 2px; }
+.hint-steps span { min-height: 30px; display: grid; place-items: center; padding: 4px 6px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface-2); color: var(--ink-soft); font-size: .67rem; font-weight: 850; text-align: center; }
+.hint-steps span.active { border-color: var(--blue); background: #e9f8fa; color: #164f59; }
+.hint-steps span.done { border-color: #b7d98e; background: #f0f9e7; color: #3f6717; }
+.text-button { padding: 8px; border: 0; background: transparent; color: var(--ink-soft); cursor: pointer; text-decoration: underline; font-size: .78rem; font-weight: 700; }
+.rule-card { padding: 16px 18px; border-left: 3px solid var(--lime-dark); color: var(--ink-soft); font-size: .78rem; }
+.rule-card strong { color: var(--navy); }
+.rule-card ul { margin: 7px 0 0; padding-left: 18px; }
+.rule-card li + li { margin-top: 3px; }
+.numberlink-rule-diagram { width: 140px; aspect-ratio: 1; display: grid; grid-template-columns: repeat(3, 1fr); border: 3px solid var(--navy); background: #fff; }
+.numberlink-rule-diagram > * { position: relative; display: grid; place-items: center; border: 1px solid var(--line); color: var(--navy); font-style: normal; font-weight: 900; }
+.numberlink-rule-diagram .n1 { color: #d84a4a; }
+.numberlink-rule-diagram .n2 { color: #2f80ed; }
+@media (max-width: 900px) {
+  .game-layout { grid-template-columns: 1fr; }
+  .tool-panel { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .tool-panel .notice, .tool-panel .completion-panel, .rule-card { grid-column: 1 / -1; }
+}
+@media (max-width: 620px) {
+  .game-shell { width: calc(100% - 18px); padding-top: 22px; }
+  .game-heading { align-items: start; flex-direction: column; }
+  .game-heading .eyebrow { margin-top: 14px; }
+  .game-meta { justify-content: flex-start; }
+  .tool-panel { grid-template-columns: 1fr; }
+  .tool-panel .notice, .tool-panel .completion-panel, .rule-card { grid-column: auto; }
+  .board-panel { border-radius: 12px; }
+  .loading { min-height: 300px; }
+  .path-underlay { stroke-width: 9; }
+  .path-line { stroke-width: 6; }
+}
