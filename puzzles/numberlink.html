@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="YourLogicのナンバーリンク。同じ数字同士を、交差しない線で結びます。">
+  <title>ナンバーリンク — YourLogic</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='15' fill='%23142d35'/%3E%3Cpath d='M16 15h32v34H16zM27 15v34M38 15v34M16 27h32M16 38h32' fill='none' stroke='%23c8f135' stroke-width='3'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="../css/base.css?v=20260917-5">
+  <link rel="stylesheet" href="../css/numberlink.css?v=20260917-5">
+</head>
+<body>
+  <header class="site-header">
+    <div class="header-inner">
+      <a class="brand" href="../index.html" aria-label="YourLogic ホーム"><span class="brand-mark" aria-hidden="true">YL</span><span class="brand-text">YourLogic</span></a>
+      <div class="game-clock"><span>TIME</span><strong id="timer">00:00</strong></div>
+    </div>
+  </header>
+
+  <main class="game-shell">
+    <div class="game-heading">
+      <div><a class="back-link" href="../index.html">← パズル一覧へ</a><p class="eyebrow">CONNECT EVERY CELL</p><h1>ナンバーリンク</h1></div>
+      <div class="game-meta"><span id="size-label">-- × --</span><span id="difficulty-label">--</span><span id="play-mode-label" class="play-mode-label" hidden></span></div>
+    </div>
+
+    <div class="game-layout">
+      <section class="board-panel surface" aria-label="ナンバーリンク盤面">
+        <div id="loading" class="loading">盤面を読み込んでいます…</div>
+        <div id="board" class="numberlink-board" role="grid" aria-label="ナンバーリンクの盤面" hidden></div>
+      </section>
+
+      <aside class="tool-panel">
+        <section class="tool-card surface">
+          <h2>入力モード</h2>
+          <p>数字または線の先端から、通したいマスをなぞってください。</p>
+          <div class="mode-switch two-modes" role="group" aria-label="入力モード">
+            <button class="mode active" data-mode="draw" type="button" aria-pressed="true"><span>⌁</span>線を引く</button>
+            <button class="mode" data-mode="erase" type="button" aria-pressed="false"><span>×</span>消す</button>
+          </div>
+        </section>
+
+        <div id="message" class="notice" role="status" aria-live="polite" hidden></div>
+
+        <section id="completion-panel" class="completion-panel surface" hidden>
+          <strong>もう一問、解いてみますか？</strong>
+          <p id="completion-copy"></p>
+          <button id="retry-btn" class="btn btn-accent btn-block" type="button">同じ条件でもう一問</button>
+        </section>
+
+        <section class="tool-card surface">
+          <h2>サポート</h2>
+          <div class="action-list">
+            <button id="rules-btn" class="btn btn-secondary btn-block" type="button">ルール説明</button>
+            <button id="check-btn" class="btn btn-primary btn-block" type="button">答え合わせ</button>
+            <div class="hint-steps" aria-label="2段階ヒント">
+              <span id="hint-step-focus" class="active">1 着目箇所</span><span id="hint-step-logic">2 ロジックと答え</span>
+            </div>
+            <button id="hint-btn" class="btn btn-secondary btn-block" type="button">ヒント1：着目箇所を見る</button>
+            <button id="undo-btn" class="btn btn-secondary btn-block" type="button" disabled>一個もどる</button>
+            <button id="clear-btn" class="btn btn-secondary btn-block" type="button">入力をすべて消す</button>
+            <button id="answer-btn" class="text-button" type="button">解答を表示する</button>
+          </div>
+        </section>
+
+        <section class="rule-card surface">
+          <strong>操作方法</strong>
+          <ul>
+            <li>数字または線の途中からドラッグして線を引く</li>
+            <li>一度通った線を逆になぞると、その位置まで戻る</li>
+            <li>消すモードで線を途中から消す</li>
+            <li>⌘Z / Ctrl+Zで一個もどる</li>
+          </ul>
+        </section>
+      </aside>
+    </div>
+  </main>
+
+  <dialog id="rules-dialog" class="rules-dialog" aria-labelledby="rules-dialog-title">
+    <form method="dialog" class="rules-dialog-card">
+      <button class="dialog-close" value="cancel" aria-label="閉じる" type="submit">×</button>
+      <p class="eyebrow">HOW TO PLAY</p>
+      <h2 id="rules-dialog-title">ナンバーリンクのルール</h2>
+      <div class="rule-tabs"><span class="rule-tab active">基本ルール</span></div>
+      <div class="rule-panel">
+        <div class="numberlink-rule-diagram" aria-hidden="true"><span class="n1">1</span><i></i><i></i><i></i><span class="n2">2</span><i></i><span class="n1">1</span><i></i><span class="n2">2</span></div>
+        <ul>
+          <li>同じ数字が書かれた2つのマスを、1本の線で結びます。</li>
+          <li>線は縦または横へ進み、途中で交差・分岐できません。</li>
+          <li>すべてのマスを、いずれかの線がちょうど1回通るようにします。</li>
+        </ul>
+      </div>
+    </form>
+  </dialog>
+
+  <script type="module" src="../js/puzzles/numberlink/numberlink.js?v=20260917-5"></script>
+</body>
+</html>

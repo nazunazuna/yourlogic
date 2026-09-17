@@ -7,7 +7,7 @@ import {
 import {
   decodePuzzleDataFromFirestore,
   encodePuzzleDataForFirestore,
-} from "../core/puzzleDataCodec.js?v=20260916-2";
+} from "../core/puzzleDataCodec.js?v=20260917-5";
 
 const firebaseConfig = {
   apiKey: "AIzaSyCkbdX-B6FfIVplmG98tIvxO0uUv-mYDSw",
@@ -125,7 +125,7 @@ export async function registerNewUser(uid, displayName) {
   return data;
 }
 
-/** type/difficulty で取得し、四角に切れのみ size を絞り込みます。 */
+/** type/difficulty で取得し、sizeが指定されたパズルは盤面サイズも絞り込みます。 */
 export async function fetchPuzzles({ type, difficulty, size = null }) {
   const snapshot = await getDocs(query(
     collection(db, "puzzles"),

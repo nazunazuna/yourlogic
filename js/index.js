@@ -6,17 +6,18 @@ import {
   getGuestDailyStats,
   getGuestFinishedPuzzleIds, getJstDateKey, markPuzzleFinished, syncGenerationPoints,
   MAX_GENERATION_POINTS,
-} from "./services/firebaseService.js?v=20260917-3";
+} from "./services/firebaseService.js?v=20260917-5";
 import { generatePuzzle } from "./puzzles/sudoku/sudokuGenerator.js?v=20260917-3";
 import { generateShikakuPuzzle } from "./puzzles/shikaku/shikakuGenerator.js?v=20260917-3";
-import { clearProgress, loadProgress, progressLabel, progressUrl } from "./core/progressStore.js?v=20260917-3";
+import { generateNumberlinkPuzzle, numberlinkSizeForDifficulty } from "./puzzles/numberlink/numberlinkGenerator.js?v=20260917-5";
+import { clearProgress, loadProgress, progressLabel, progressUrl } from "./core/progressStore.js?v=20260917-5";
 import { filterAndSortPuzzles, getPuzzleGenre, PUZZLE_GENRES } from "./core/puzzleCatalog.js?v=20260917-4";
 
 const DIFFICULTIES = ["easy", "standard", "hard", "insane"];
 const DIFFICULTY_NAMES = { easy: "初級", standard: "中級", hard: "上級", insane: "超上級" };
-const PUZZLE_TYPES = ["sudoku", "shikaku"];
-const PUZZLE_NAMES = { sudoku: "数独", shikaku: "四角に切れ" };
-const PUZZLE_ICONS = { sudoku: "09", shikaku: "▣" };
+const PUZZLE_TYPES = ["sudoku", "shikaku", "numberlink"];
+const PUZZLE_NAMES = { sudoku: "数独", shikaku: "四角に切れ", numberlink: "ナンバーリンク" };
+const PUZZLE_ICONS = { sudoku: "09", shikaku: "▣", numberlink: "⌁" };
 const SHIKAKU_SIZES = {
   easy: [5, 10],
   standard: [10, 15, 20, 25, 30],
@@ -24,13 +25,15 @@ const SHIKAKU_SIZES = {
   insane: [30, 40, 50],
 };
 const SHIKAKU_GENERATOR_VERSION = "logic-v4";
-const DAILY_ALGORITHM_VERSION = "daily-v2";
+const NUMBERLINK_GENERATOR_VERSION = "edge-csp-v1";
+const DAILY_ALGORITHM_VERSION = "daily-v3";
 
 const state = {
   user: null,
   userData: null,
   sudokuDifficulty: "easy",
   shikakuDifficulty: "easy",
+  numberlinkDifficulty: "easy",
   busy: false,
   authReady: false,
   syncingPoints: false,
@@ -49,6 +52,7 @@ const userName = $("#user-name");
 const status = $("#home-status");
 const sudokuBtn = $("#start-sudoku-btn");
 const shikakuBtn = $("#start-shikaku-btn");
+const numberlinkBtn = $("#start-numberlink-btn");
 const dailyBtn = $("#daily-btn");
 const challengeBtn = $("#challenge-btn");
 const sizeSelect = $("#shikaku-size");
@@ -167,7 +171,7 @@ function showStatus(message, tone = "") {
 
 function setBusy(busy) {
   state.busy = busy;
-  [sudokuBtn, shikakuBtn, challengeBtn].forEach((button) => {
+  [sudokuBtn, shikakuBtn, numberlinkBtn, challengeBtn].forEach((button) => {
     if (button) button.disabled = busy || !state.authReady;
   });
   if (dailyBtn) dailyBtn.disabled = busy || !state.dailyReady || state.dailyFinished;
@@ -199,9 +203,11 @@ function choose(group, button) {
   });
   if (group.dataset.choiceGroup === "sudoku") {
     state.sudokuDifficulty = button.dataset.value;
-  } else {
+  } else if (group.dataset.choiceGroup === "shikaku") {
     state.shikakuDifficulty = button.dataset.value;
     renderShikakuSizes();
+  } else if (group.dataset.choiceGroup === "numberlink") {
+    state.numberlinkDifficulty = button.dataset.value;
   }
 }
 
@@ -311,17 +317,22 @@ function randomPuzzleSpecification(random = Math.random) {
   return {
     type,
     difficulty,
-    size: type === "sudoku" ? 9 : randomPick(SHIKAKU_SIZES[difficulty], random),
+    size: type === "sudoku"
+      ? 9
+      : type === "shikaku"
+        ? randomPick(SHIKAKU_SIZES[difficulty], random)
+        : numberlinkSizeForDifficulty(difficulty),
   };
 }
 
 function generate(type, difficulty, size) {
   if (type === "sudoku") return generatePuzzle(difficulty);
-  return generateShikakuPuzzle(size, difficulty);
+  if (type === "shikaku") return generateShikakuPuzzle(size, difficulty);
+  return generateNumberlinkPuzzle(size, difficulty);
 }
 
 function generateWithRetries({ type, difficulty, size }) {
-  const attempts = type === "sudoku" ? 10 : 3;
+  const attempts = type === "sudoku" ? 10 : type === "shikaku" ? 3 : 2;
   for (let attempt = 0; attempt < attempts; attempt++) {
     const result = generate(type, difficulty, size);
     if (result) return result;
@@ -331,7 +342,7 @@ function generateWithRetries({ type, difficulty, size }) {
 
 function renderDailyPuzzle(puzzle) {
   if (!puzzle) return;
-  const suffix = puzzle.type === "shikaku" ? `（${puzzle.size} × ${puzzle.size}）` : "";
+  const suffix = puzzle.type === "sudoku" ? "" : `（${puzzle.size} × ${puzzle.size}）`;
   $("#daily-icon").textContent = PUZZLE_ICONS[puzzle.type];
   $("#daily-title").textContent = `${DIFFICULTY_NAMES[puzzle.difficulty]}の${PUZZLE_NAMES[puzzle.type]}${suffix}`;
   $("#daily-date").textContent = `${puzzle.dateKey.replaceAll("-", "/")}・生成ポイント不要`;
@@ -369,7 +380,8 @@ function renderDailyProgress() {
 async function ensureDailyPuzzle() {
   const cached = getCachedDailyPuzzle();
   const cacheIsCurrent = cached?.parameters?.algorithmVersion === DAILY_ALGORITHM_VERSION
-    && (cached.type !== "shikaku" || cached.parameters?.generatorVersion === SHIKAKU_GENERATOR_VERSION);
+    && (cached.type !== "shikaku" || cached.parameters?.generatorVersion === SHIKAKU_GENERATOR_VERSION)
+    && (cached.type !== "numberlink" || cached.parameters?.generatorVersion === NUMBERLINK_GENERATOR_VERSION);
   if (cached && cacheIsCurrent) {
     state.dailyPuzzle = cached;
     state.dailyReady = true;
@@ -409,6 +421,7 @@ async function ensureDailyPuzzle() {
         algorithmVersion: DAILY_ALGORITHM_VERSION,
         uniqueSolutionVerified: true,
         ...(type === "shikaku" ? { generatorVersion: SHIKAKU_GENERATOR_VERSION } : {}),
+        ...(type === "numberlink" ? { generatorVersion: NUMBERLINK_GENERATOR_VERSION } : {}),
       },
       createdAt: new Date().toISOString(),
     };
@@ -443,7 +456,7 @@ async function finishedIds() {
 }
 
 function showNoStockDialog(type, difficulty, size) {
-  const suffix = type === "shikaku" ? `（${size} × ${size}）` : "";
+  const suffix = type === "sudoku" ? "" : `（${size} × ${size}）`;
   $("#stock-dialog-message").textContent = `${PUZZLE_NAMES[type]}${suffix}・${DIFFICULTY_NAMES[difficulty]}の未終了問題はありません。ログインすると、生成ポイントを1使って新しい問題を作れます。`;
   if (typeof stockDialog.showModal === "function") stockDialog.showModal();
   else alert($("#stock-dialog-message").textContent);
@@ -463,7 +476,8 @@ async function beginGoogleLogin() {
 function puzzleUrl(type, difficulty, size, id, playMode = "normal") {
   const mode = playMode === "normal" ? "" : `&mode=${encodeURIComponent(playMode)}`;
   if (type === "sudoku") return `./puzzles/sudoku.html?diff=${difficulty}&id=${encodeURIComponent(id)}${mode}`;
-  return `./puzzles/shikaku.html?size=${size}&diff=${difficulty}&id=${encodeURIComponent(id)}${mode}`;
+  if (type === "shikaku") return `./puzzles/shikaku.html?size=${size}&diff=${difficulty}&id=${encodeURIComponent(id)}${mode}`;
+  return `./puzzles/numberlink.html?size=${size}&diff=${difficulty}&id=${encodeURIComponent(id)}${mode}`;
 }
 
 async function startPuzzle({ type, difficulty, size = null }) {
@@ -475,7 +489,9 @@ async function startPuzzle({ type, difficulty, size = null }) {
     const fetched = await fetchPuzzles({ type, difficulty, size });
     const available = fetched.filter((item) => {
       if (["challenge", "daily"].includes(item.parameters?.mode)) return false;
-      return type !== "shikaku" || item.parameters?.generatorVersion === SHIKAKU_GENERATOR_VERSION;
+      if (type === "shikaku") return item.parameters?.generatorVersion === SHIKAKU_GENERATOR_VERSION;
+      if (type === "numberlink") return item.parameters?.generatorVersion === NUMBERLINK_GENERATOR_VERSION;
+      return true;
     });
     const finished = await finishedIds();
     const targetFromStock = randomPick(available.filter((item) => !finished.has(item.id)));
@@ -502,14 +518,15 @@ async function startPuzzle({ type, difficulty, size = null }) {
         difficulty,
         size: type === "sudoku" ? 9 : size,
         puzzleData,
-        parameters: type === "shikaku"
-          ? {
-              mode: "normal",
-              uniqueSolutionVerified: true,
-              generatorVersion: SHIKAKU_GENERATOR_VERSION,
-              generatedWithoutUnitCells: true,
-            }
-          : { mode: "normal", uniqueSolutionVerified: true },
+        parameters: {
+          mode: "normal",
+          uniqueSolutionVerified: true,
+          ...(type === "shikaku" ? {
+            generatorVersion: SHIKAKU_GENERATOR_VERSION,
+            generatedWithoutUnitCells: true,
+          } : {}),
+          ...(type === "numberlink" ? { generatorVersion: NUMBERLINK_GENERATOR_VERSION } : {}),
+        },
       });
       target = { id };
     }
@@ -572,6 +589,7 @@ async function startChallenge() {
           generatorVersion: SHIKAKU_GENERATOR_VERSION,
           generatedWithoutUnitCells: true,
         } : {}),
+        ...(type === "numberlink" ? { generatorVersion: NUMBERLINK_GENERATOR_VERSION } : {}),
       },
     });
     clearProgress();
@@ -662,6 +680,11 @@ shikakuBtn.addEventListener("click", () => startPuzzle({
   difficulty: state.shikakuDifficulty,
   size: Number(sizeSelect.value),
 }));
+numberlinkBtn.addEventListener("click", () => startPuzzle({
+  type: "numberlink",
+  difficulty: state.numberlinkDifficulty,
+  size: numberlinkSizeForDifficulty(state.numberlinkDifficulty),
+}));
 
 window.addEventListener("yourlogic:progress", renderProgress);
 renderShikakuSizes();
@@ -681,13 +704,13 @@ function registerWebMcp() {
     void Promise.resolve(context.registerTool({
       name: "configure_puzzle",
       title: "パズルを選ぶ",
-      description: "YourLogicの画面上で、遊ぶパズル・難易度・四角に切れの盤面サイズを選択します。",
+      description: "YourLogicの画面上で、遊ぶパズル・難易度・盤面サイズを選択します。",
       inputSchema: {
         type: "object",
         properties: {
           type: { type: "string", enum: PUZZLE_TYPES },
           difficulty: { type: "string", enum: DIFFICULTIES },
-          size: { type: "integer", enum: [5, 10, 15, 20, 25, 30, 40, 50] },
+          size: { type: "integer", enum: [5, 6, 7, 8, 9, 10, 15, 20, 25, 30, 40, 50] },
         },
         required: ["type", "difficulty"],
         additionalProperties: false,
@@ -705,7 +728,12 @@ function registerWebMcp() {
           sizeSelect.value = String(input.size);
         }
         group.closest(".puzzle-card")?.scrollIntoView({ behavior: "smooth", block: "center" });
-        return { configured: true, type: input.type, difficulty: input.difficulty, size: input.type === "shikaku" ? Number(sizeSelect.value) : 9 };
+        const selectedSize = input.type === "shikaku"
+          ? Number(sizeSelect.value)
+          : input.type === "numberlink"
+            ? numberlinkSizeForDifficulty(input.difficulty)
+            : 9;
+        return { configured: true, type: input.type, difficulty: input.difficulty, size: selectedSize };
       },
     }, { signal: lifecycle.signal })).catch((error) => console.error("WebMCP registration failed", error));
   } catch (error) {
@@ -716,7 +744,7 @@ function registerWebMcp() {
 registerWebMcp();
 const autoParams = new URLSearchParams(location.search);
 const autoMode = autoParams.get("auto");
-if (["sudoku", "shikaku", "challenge"].includes(autoMode)) {
+if (["sudoku", "shikaku", "numberlink", "challenge"].includes(autoMode)) {
   const difficulty = DIFFICULTIES.includes(autoParams.get("diff")) ? autoParams.get("diff") : "easy";
   const waitForAuth = setInterval(() => {
     if (!state.authReady) return;
@@ -728,7 +756,11 @@ if (["sudoku", "shikaku", "challenge"].includes(autoMode)) {
     const requestedSize = Number(autoParams.get("size"));
     const size = autoMode === "shikaku" && SHIKAKU_SIZES[difficulty].includes(requestedSize)
       ? requestedSize
-      : autoMode === "shikaku" ? SHIKAKU_SIZES[difficulty][0] : 9;
+      : autoMode === "shikaku"
+        ? SHIKAKU_SIZES[difficulty][0]
+        : autoMode === "numberlink"
+          ? numberlinkSizeForDifficulty(difficulty)
+          : 9;
     void startPuzzle({ type: autoMode, difficulty, size });
   }, 50);
 }

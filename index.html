@@ -3,11 +3,11 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="数独と四角に切れを、ヒント・途中保存付きで遊べるロジックパズルサイト。">
+  <meta name="description" content="数独・四角に切れ・ナンバーリンクを、ヒント・途中保存付きで遊べるロジックパズルサイト。">
   <title>YourLogic — ロジックパズルを遊ぶ</title>
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='15' fill='%23142d35'/%3E%3Cpath d='M16 15h32v34H16zM27 15v34M38 15v34M16 27h32M16 38h32' fill='none' stroke='%23c8f135' stroke-width='3'/%3E%3C/svg%3E">
   <link rel="stylesheet" href="./css/base.css?v=20260917-3">
-  <link rel="stylesheet" href="./css/index.css?v=20260917-4">
+  <link rel="stylesheet" href="./css/index.css?v=20260917-5">
 </head>
 <body>
   <header class="site-header">
@@ -36,7 +36,7 @@
       <div>
         <p class="eyebrow">THINK / DRAW / SOLVE</p>
         <h1 id="intro-title">考える時間を、<br><span>すぐに始めよう。</span></h1>
-        <p>数独と四角に切れを、問題生成・ヒント・途中保存つきで遊べます。</p>
+        <p>数独・四角に切れ・ナンバーリンクを、問題生成・ヒント・途中保存つきで遊べます。</p>
       </div>
       <div class="quick-play surface">
         <div id="daily-icon" class="quick-icon" aria-hidden="true">…</div>
@@ -103,7 +103,7 @@
         </label>
         <button id="puzzle-filter-reset" class="btn btn-secondary btn-sm" type="button">条件をリセット</button>
         <div class="puzzle-browser-status">
-          <output id="puzzle-result-count" aria-live="polite">2件のパズル</output>
+          <output id="puzzle-result-count" aria-live="polite">3件のパズル</output>
           <small>タグにカーソルを合わせると、ジャンルの説明を表示します。</small>
         </div>
       </section>
@@ -170,6 +170,34 @@
             <button id="start-shikaku-btn" class="btn btn-primary btn-block" type="button">この四角に切れを始める</button>
           </div>
         </article>
+
+        <article class="puzzle-card numberlink-card" data-puzzle-card data-puzzle-id="numberlink" data-puzzle-name="ナンバーリンク" data-genres="pencil-number" data-order="3">
+          <div class="card-visual numberlink-visual" aria-hidden="true">
+            <div class="mini-numberlink">
+              <span class="pair-a start">1</span><i class="line-a horizontal"></i><span class="pair-a end">1</span>
+              <span class="pair-b start">2</span><i class="line-b corner"></i><span class="pair-b end">2</span>
+            </div>
+            <span class="card-number">03</span>
+          </div>
+          <div class="card-content">
+            <div class="card-title-row">
+              <div><p>PATH CONNECTING</p><h3>ナンバーリンク</h3></div>
+              <span class="feature-badge">一意解・ヒント</span>
+            </div>
+            <p class="card-description">同じ数字同士を交差しない線で結び、すべてのマスをちょうど一度通ります。</p>
+            <div class="puzzle-tags" aria-label="ナンバーリンクのジャンル"></div>
+            <fieldset class="choice-group" data-choice-group="numberlink">
+              <legend>難易度（5×5〜8×8）</legend>
+              <div class="segmented">
+                <button class="choice active" data-value="easy" type="button" aria-pressed="true">初級</button>
+                <button class="choice" data-value="standard" type="button" aria-pressed="false">中級</button>
+                <button class="choice" data-value="hard" type="button" aria-pressed="false">上級</button>
+                <button class="choice" data-value="insane" type="button" aria-pressed="false">超上級</button>
+              </div>
+            </fieldset>
+            <button id="start-numberlink-btn" class="btn btn-primary btn-block" type="button">このナンバーリンクを始める</button>
+          </div>
+        </article>
       </div>
       <div id="puzzle-empty" class="puzzle-empty surface" hidden>
         <strong>条件に合うパズルがありません</strong>
@@ -204,6 +232,6 @@
   <div id="genre-tooltip" class="genre-tooltip" role="tooltip" hidden></div>
 
   <footer class="site-footer">© 2026 YourLogic</footer>
-  <script type="module" src="./js/index.js?v=20260917-4"></script>
+  <script type="module" src="./js/index.js?v=20260917-5"></script>
 </body>
 </html>

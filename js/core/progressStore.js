@@ -10,7 +10,7 @@ function safeParse(value) {
 function normalize(progress) {
   if (!progress || typeof progress !== "object") return null;
   const inferredType = progress.type || (progress.currentRects || progress.userRectangles ? "shikaku" : "sudoku");
-  if (!['sudoku', 'shikaku'].includes(inferredType)) return null;
+  if (!["sudoku", "shikaku", "numberlink"].includes(inferredType)) return null;
   return {
     ...progress,
     version: 2,
@@ -54,13 +54,16 @@ export function progressUrl(progress) {
   if (progress.type === "shikaku") {
     return `./puzzles/shikaku.html?size=${progress.size || 10}&diff=${progress.difficulty || "standard"}&id=${encodeURIComponent(progress.id || "local")}&resume=true${mode}`;
   }
+  if (progress.type === "numberlink") {
+    return `./puzzles/numberlink.html?size=${progress.size || 6}&diff=${progress.difficulty || "standard"}&id=${encodeURIComponent(progress.id || "local")}&resume=true${mode}`;
+  }
   return `./puzzles/sudoku.html?diff=${progress.difficulty || "easy"}&id=${encodeURIComponent(progress.id || "")}&resume=true${mode}`;
 }
 
 export function progressLabel(progress) {
   if (!progress) return "";
-  const game = progress.type === "shikaku" ? "四角に切れ" : "数独";
+  const game = ({ sudoku: "数独", shikaku: "四角に切れ", numberlink: "ナンバーリンク" })[progress.type] || progress.type;
   const difficulty = ({ easy: "初級", standard: "中級", hard: "上級", insane: "超上級" })[progress.difficulty] || progress.difficulty || "--";
-  const size = progress.type === "shikaku" && progress.size ? `・${progress.size}×${progress.size}` : "";
+  const size = progress.type !== "sudoku" && progress.size ? `・${progress.size}×${progress.size}` : "";
   return `${game}${size}・${difficulty}`;
 }

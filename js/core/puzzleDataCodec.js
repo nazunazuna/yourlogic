@@ -24,6 +24,19 @@ export function inflateShikakuBoard(board, size) {
 }
 
 export function encodePuzzleDataForFirestore({ type, size, problemData, solutionData, parameters = {} }) {
+  if (type === "numberlink") {
+    const side = normalizedSize(size);
+    const grid = Array.isArray(problemData?.[0]) ? problemData.flat() : [...(problemData || [])];
+    if (!side || grid.length !== side * side) throw new Error("ナンバーリンクの盤面サイズと問題データが一致しません。");
+    return {
+      problemData: grid,
+      solutionData: {
+        edges: Array.isArray(solutionData?.edges) ? [...solutionData.edges] : [],
+        owners: Array.isArray(solutionData?.owners) ? [...solutionData.owners] : [],
+      },
+      parameters: { ...parameters, problemEncoding: "flat-row-major" },
+    };
+  }
   if (type !== "shikaku") return { problemData, solutionData, parameters };
   return {
     problemData: flattenShikakuBoard(problemData, size),
@@ -33,6 +46,14 @@ export function encodePuzzleDataForFirestore({ type, size, problemData, solution
 }
 
 export function decodePuzzleDataFromFirestore(puzzle) {
+  if (puzzle?.type === "numberlink") {
+    const problemData = puzzle.problemData ?? puzzle.puzzleData;
+    return {
+      ...puzzle,
+      problemData: Array.isArray(problemData?.[0]) ? problemData.flat() : problemData,
+      solutionData: puzzle.solutionData || { edges: [], owners: [] },
+    };
+  }
   if (!puzzle || puzzle.type !== "shikaku") return puzzle;
   const problemData = puzzle.problemData ?? puzzle.puzzleData;
   const solutionData = puzzle.solutionData ?? puzzle.solutionRects;
